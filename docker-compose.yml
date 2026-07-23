@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      PORTAL_BASE_URL: ${PORTAL_BASE_URL:-https://urja-ops.flockenergy.tech}
+      PORTAL_USERNAME: ${PORTAL_USERNAME:?set PORTAL_USERNAME in your .env}
+      PORTAL_PASSWORD: ${PORTAL_PASSWORD:?set PORTAL_PASSWORD in your .env}
+      LOG_FORMAT: json
+      SNAPSHOT_TTL_SECONDS: 300
+    restart: unless-stopped

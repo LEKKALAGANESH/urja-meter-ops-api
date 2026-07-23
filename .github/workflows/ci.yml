@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: |
+          ruff check app tests scripts
+          ruff format --check app tests scripts
+
+      - name: Test
+        # Live tests are excluded: CI has no portal credentials, and a third party's
+        # availability must never decide whether our build is green.
+        run: pytest --cov=app --cov-report=term --cov-fail-under=80
+
+      - name: Verify openapi.json is current
+        # A spec that drifts from the code is worse than no spec at all.
+        run: |
+          python -m scripts.export_openapi /tmp/openapi.json
+          diff -u openapi.json /tmp/openapi.json \
+            || (echo "::error::openapi.json is stale - run 'make openapi' and commit"; exit 1)
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t flock-energy-api:ci .
