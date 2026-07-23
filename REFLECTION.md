@@ -170,7 +170,7 @@ works, but it couples the tests to internals and would break on a harmless refac
 client should expose a small seam for this instead.
 
 **The hierarchy endpoint has no pagination.** `depth` bounds it in practice, but a
-`depth=7` request serialises the entire tree in one response. Fine at 54 leaf paths;
+`depth=7` request serialises the entire tree in one response. Fine at 40 leaf paths;
 not a pattern that survives growth.
 
 **Some error branches in the portal client are unreached.** Specifically the interaction

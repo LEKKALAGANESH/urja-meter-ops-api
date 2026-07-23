@@ -41,8 +41,8 @@ disagree about what a meter's path is.
 
 **Positive.** Correct under the "scoped codes" reading and lossless under the "inconsistent
 data" reading: it preserves a distinction we may not fully understand rather than destroying
-it. Meter counts are trustworthy at every level. The 40 DT codes correctly expand to 54
-distinct root-to-leaf paths.
+it. Meter counts are trustworthy at every level: 10 division codes correctly expand to 30
+distinct division nodes, and 28 feeder codes to 40 feeder nodes.
 
 **Negative.** Node ids are longer and must be treated as opaque by clients. A caller who
 knows only a bare code cannot address a node directly — they filter meters by

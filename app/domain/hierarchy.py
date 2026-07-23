@@ -10,7 +10,8 @@ occurs under ``C-01``, ``C-03`` and ``C-05``. Only zone->circle and feeder->dt a
 
 So a node's identity is its **full ancestor path**, not its bare code. Keying on the code
 alone would fold three genuinely distinct divisions into one and silently corrupt every
-meter count above it. This yields 54 distinct leaf paths over 40 DT codes.
+meter count above it. Measured on the repaired data, 10 division codes expand to 30
+distinct division nodes; DT codes alone are 1:1 with their paths (40).
 
 *Interpretation, stated honestly:* the data cannot tell us whether codes are legitimately
 scoped to their parent (as ward or circuit numbering often is) or whether the portal's own
@@ -236,7 +237,7 @@ def find_node(tree: HierarchyNode, node_id: str) -> HierarchyNode | None:
 def prune_depth(node: HierarchyNode, max_depth: int) -> HierarchyNode:
     """Return a copy truncated to ``max_depth`` levels below ``node``.
 
-    Lets a caller fetch the top of a 7-level tree without transferring all 54 leaf paths.
+    Lets a caller fetch the top of a 7-level tree without transferring all 40 leaf paths.
     """
     if max_depth <= 0:
         return node.model_copy(update={"children": []})

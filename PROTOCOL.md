@@ -383,8 +383,22 @@ Measured across the full export, excluding blanks:
 | **feeder → substation** | **12 of 28** |
 | dt → feeder | 0 of 40 |
 
-`D-01` appears under `C-01`, `C-03` **and** `C-05`. So 40 DT codes expand to **54 distinct
-root-to-leaf paths**.
+`D-01` appears under `C-01`, `C-03` **and** `C-05`. Measured on the repaired data, the code
+count and the node count diverge sharply at the middle levels:
+
+| Level | Distinct codes | Distinct root-to-leaf paths |
+|---|---|---|
+| zone | 3 | 3 |
+| circle | 6 | 6 |
+| **division** | **10** | **30** |
+| **subdivision** | **14** | **40** |
+| **substation** | **18** | **40** |
+| **feeder** | **28** | **40** |
+| dt | 40 | 40 |
+
+Ten division codes are really thirty distinct divisions. (Counted *after* blank repair —
+before repair the blanks inflate these figures further, by splitting paths on a missing
+rung.)
 
 *Design consequence:* a node's identity is its **full ancestor path** (`Z-01/C-01/D-01`),
 not its bare code. Keying by code alone would merge three unrelated divisions into one and
@@ -437,12 +451,12 @@ conflict is reported at `/data-quality` rather than silently smoothed over.
 |---|---|
 | Meters | 403 (`J100000`–`J100402`) |
 | Distribution transformers | 40 |
-| Distinct hierarchy paths | 54 leaf paths over 40 DT codes |
+| Distinct hierarchy paths | 40 leaf paths; 10 division codes -> 30 division nodes |
 | Makes | HPL 90, Genus 88, Secure 85, Allied 76, L&T 64 |
 | Install status | Installed 238, Faulty 90, Decommissioned 75 |
 | Build | legacy 238, v2 165 |
 | Meters with coordinates | 403 (100%) |
-| Meters with a data-quality flag | 22 |
+| Meters with a data-quality flag | 25 (22 blank code/name, 3 DT-name conflict) |
 
 Meter ids are **case-sensitive**: `j100000` → `404`.
 
