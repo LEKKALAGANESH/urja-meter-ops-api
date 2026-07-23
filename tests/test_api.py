@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.deps import get_snapshot, get_store
+from app.api.deps import get_session, get_snapshot, get_store
 from app.config import Settings
 from app.domain import hierarchy as hierarchy_ops
 from app.domain import normalize
@@ -88,13 +88,35 @@ class FakeStore:
         )
 
 
+class FakeSession:
+    """Stands in for PortalSession in the readiness and session-status routes."""
+
+    def __init__(self) -> None:
+        self.remote_ok = True
+        self.error: Exception | None = None
+        self.expires_at = datetime.now(UTC)
+        self.authenticated_at = datetime.now(UTC)
+        self.login_count = 1
+        self.is_authenticated = True
+
+    async def fetch_remote_session(self):
+        if self.error:
+            raise self.error
+        return {"session": {"token": "t"}} if self.remote_ok else None
+
+
 @pytest.fixture
 def store() -> FakeStore:
     return FakeStore(build_snapshot())
 
 
 @pytest.fixture
-def client(store: FakeStore):
+def session() -> FakeSession:
+    return FakeSession()
+
+
+@pytest.fixture
+def client(store: FakeStore, session: FakeSession):
     settings = Settings(
         portal_username="test",
         portal_password="test",
@@ -104,6 +126,7 @@ def client(store: FakeStore):
     app = create_app(settings)
     app.dependency_overrides[get_store] = lambda: store
     app.dependency_overrides[get_snapshot] = lambda: store.snapshot
+    app.dependency_overrides[get_session] = lambda: session
     with TestClient(app) as test_client:
         yield test_client
 
@@ -307,6 +330,30 @@ class TestSystem:
         body = client.get("/api/v1/stats").json()
         assert body["meter_count"] == 7
         assert "by_install_status" in body
+
+    def test_readiness_reports_both_dependency_checks(self, client):
+        body = client.get("/api/v1/health/ready").json()
+        assert body["status"] == "ready"
+        assert set(body["checks"]) == {"portal_session", "snapshot"}
+
+    def test_readiness_returns_503_when_the_session_is_rejected(self, client, session):
+        """A load balancer must drain this instance rather than let it serve errors."""
+        session.remote_ok = False
+        response = client.get("/api/v1/health/ready")
+        assert response.status_code == 503
+        assert response.json()["status"] == "not_ready"
+
+    def test_readiness_survives_an_unreachable_portal(self, client, session):
+        """The probe reports not-ready; it must not itself raise."""
+        session.error = PortalUnavailable("portal down")
+        response = client.get("/api/v1/health/ready")
+        assert response.status_code == 503
+        assert response.json()["checks"]["portal_session"]["ok"] is False
+
+    def test_session_status_exposes_expiry_and_login_count(self, client):
+        body = client.get("/api/v1/system/session").json()
+        assert body["authenticated"] is True
+        assert body["expires_at"] and body["login_count"] == 1
 
     def test_root_points_at_the_documentation(self, client):
         assert client.get("/").json()["documentation"] == "/docs"

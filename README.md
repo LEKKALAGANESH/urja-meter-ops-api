@@ -234,11 +234,11 @@ traces never reach the client. A caller can always distinguish "upstream is down
 ## Testing
 
 ```bash
-make test          # 236 tests, no network required
+make test          # 240 tests, no network required
 make test-live     # 18 contract tests against the real portal (needs credentials)
 ```
 
-`make test` — 236 tests, **89% coverage**, no network. Payload fixtures are **recorded from
+`make test` — 240 tests, **89% coverage**, no network. Payload fixtures are **recorded from
 the live portal**, not hand-written: invented fixtures only prove the code agrees with my
 assumptions, recorded ones prove it agrees with the system it has to talk to.
 
