@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Response
 
 from ...config import Settings
 from ...domain.models import DataQualityReport, SnapshotInfo
+from ...errors import ErrorResponse
 from ...portal.exceptions import PortalError
 from ...portal.session import PortalSession
 from ...store.snapshot import Snapshot, SnapshotStore
@@ -41,7 +42,7 @@ async def liveness(config: Settings = Depends(get_config)) -> dict[str, Any]:
         "serving errors. A *stale* snapshot still counts as ready - degraded is better "
         "than down."
     ),
-    responses={503: {"description": "Not ready to serve traffic."}},
+    responses={503: {"model": ErrorResponse, "description": "Not ready to serve traffic."}},
 )
 async def readiness(
     response: Response,

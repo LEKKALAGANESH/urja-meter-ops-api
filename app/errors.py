@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 
 class ApiError(Exception):
     """Base class for all errors rendered through the public error contract."""
@@ -121,3 +123,51 @@ class SnapshotUnavailableError(ApiError):
     status_code = 503
     code = "snapshot_unavailable"
     message = "The meter snapshot has not been built yet. Retry shortly."
+
+
+# --- OpenAPI representation of the contract above --------------------------
+
+
+class ErrorDetail(BaseModel):
+    """The body of an :class:`ApiError` as clients receive it."""
+
+    code: str = Field(
+        description="Stable machine-readable slug. Branch on this, not on prose."
+    )
+    message: str = Field(description="Human-readable, safe to display. Never a stack trace.")
+    details: dict[str, Any] | None = Field(
+        None, description="Optional structured context, e.g. invalid fields or a hint."
+    )
+    request_id: str | None = Field(
+        None, description="Correlation id; matches the X-Request-ID response header."
+    )
+
+
+class ErrorResponse(BaseModel):
+    """Envelope returned for **every** non-2xx response.
+
+    Declared so the OpenAPI document describes the real contract. Without it FastAPI
+    advertises its own ``HTTPValidationError`` for 422 and nothing at all for 404/5xx,
+    which makes generated clients fail to deserialise every error they receive.
+    """
+
+    error: ErrorDetail
+
+
+#: Response declarations shared by every route, so the error contract is documented once
+#: rather than repeated (and drifting) per endpoint.
+COMMON_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    422: {"model": ErrorResponse, "description": "Request parameters failed validation."},
+    502: {
+        "model": ErrorResponse,
+        "description": "The upstream portal returned an unusable response.",
+    },
+    503: {
+        "model": ErrorResponse,
+        "description": "The upstream portal is unavailable or rate limiting us.",
+    },
+    504: {
+        "model": ErrorResponse,
+        "description": "The upstream portal did not respond in time.",
+    },
+}

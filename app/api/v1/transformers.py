@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Path, Query, Response
 
 from ...domain.models import MeterSummary, Page, Transformer
-from ...errors import NotFoundError
+from ...errors import ErrorResponse, NotFoundError
 from ...store.snapshot import Snapshot
 from ..deps import Pagination, get_snapshot, pagination
 
@@ -53,7 +53,7 @@ async def list_transformers(
     "/{code}",
     response_model=Transformer,
     summary="Get one transformer",
-    responses={404: {"description": "No such transformer."}},
+    responses={404: {"model": ErrorResponse, "description": "No such transformer."}},
 )
 async def get_transformer(
     response: Response,
@@ -71,7 +71,7 @@ async def get_transformer(
     "/{code}/meters",
     response_model=Page[MeterSummary],
     summary="List meters on a transformer",
-    responses={404: {"description": "No such transformer."}},
+    responses={404: {"model": ErrorResponse, "description": "No such transformer."}},
 )
 async def get_transformer_meters(
     response: Response,

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Path, Query, Response
 
 from ...domain.hierarchy import find_node, meter_path, prune_depth
 from ...domain.models import HierarchyNode, MeterSummary, Page
-from ...errors import NotFoundError
+from ...errors import ErrorResponse, NotFoundError
 from ...store.snapshot import Snapshot
 from ..deps import Pagination, get_snapshot, pagination
 
@@ -49,7 +49,7 @@ async def get_hierarchy(
     response_model=Page[MeterSummary],
     summary="List meters under a subtree",
     description="Every meter whose path passes through the given node, paginated.",
-    responses={404: {"description": "No node with that path id."}},
+    responses={404: {"model": ErrorResponse, "description": "No node with that path id."}},
 )
 async def get_node_meters(
     response: Response,
@@ -89,7 +89,7 @@ async def get_node_meters(
         "Fetch one node and its descendants by path id, e.g. `Z-01/C-01/D-01`. "
         "Use this to drill into a branch without transferring the whole tree."
     ),
-    responses={404: {"description": "No node with that path id."}},
+    responses={404: {"model": ErrorResponse, "description": "No node with that path id."}},
 )
 async def get_hierarchy_node(
     response: Response,

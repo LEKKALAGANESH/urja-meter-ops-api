@@ -14,7 +14,7 @@ from ...domain.models import (
     MeterWithDistance,
     Page,
 )
-from ...errors import NotFoundError, ValidationError
+from ...errors import ErrorResponse, NotFoundError, ValidationError
 from ...portal.exceptions import PortalNotFound
 from ...store.snapshot import (
     SORTABLE_FIELDS,
@@ -131,7 +131,7 @@ async def meters_near_point(
         "Upstream this data has two incompatible encodings depending on the meter's build; "
         "both are normalised to this single shape."
     ),
-    responses={404: {"description": "No such meter."}},
+    responses={404: {"model": ErrorResponse, "description": "No such meter."}},
 )
 async def get_meter(
     response: Response,
@@ -161,7 +161,7 @@ async def get_meter(
         "The upstream series is a fixed ~7-day window and ignores date parameters, so "
         "`from`/`to` are applied locally."
     ),
-    responses={404: {"description": "No such meter."}},
+    responses={404: {"model": ErrorResponse, "description": "No such meter."}},
 )
 async def get_consumption(
     response: Response,

@@ -383,3 +383,47 @@ class TestCrossCutting:
 
     def test_docs_page_renders(self, client):
         assert client.get("/docs").status_code == 200
+
+
+class TestErrorContractIsDocumented:
+    """The spec must describe the errors the service actually returns.
+
+    Regression guard for a real defect: FastAPI advertises its own
+    ``HTTPValidationError`` (``{"detail": [...]}``) for 422, but this service returns
+    ``{"error": {...}}``. Left uncorrected, every generated client fails to deserialise
+    every error response it receives.
+    """
+
+    def test_every_error_response_references_the_real_envelope(self, client):
+        spec = client.get("/openapi.json").json()
+        refs = {
+            resp.get("content", {}).get("application/json", {}).get("schema", {}).get("$ref")
+            for ops in spec["paths"].values()
+            for op in ops.values()
+            for code, resp in op.get("responses", {}).items()
+            if code.startswith(("4", "5"))
+        }
+        assert refs == {"#/components/schemas/ErrorResponse"}
+
+    def test_fastapi_default_validation_schemas_are_gone(self, client):
+        schemas = client.get("/openapi.json").json()["components"]["schemas"]
+        assert "HTTPValidationError" not in schemas
+        assert "ErrorResponse" in schemas
+
+    def test_documented_shape_matches_a_real_422(self, client):
+        spec = client.get("/openapi.json").json()
+        documented = set(spec["components"]["schemas"]["ErrorDetail"]["properties"])
+        actual = set(client.get("/api/v1/meters?page=0").json()["error"])
+        assert actual <= documented
+
+    def test_documented_shape_matches_a_real_404(self, client):
+        spec = client.get("/openapi.json").json()
+        documented = set(spec["components"]["schemas"]["ErrorDetail"]["properties"])
+        actual = set(client.get("/api/v1/meters/NOPE").json()["error"])
+        assert actual <= documented
+
+    def test_upstream_failure_codes_are_documented(self, client):
+        """502/503/504 are emitted by _map_portal_error and must be discoverable."""
+        spec = client.get("/openapi.json").json()
+        codes = set(spec["paths"]["/api/v1/meters"]["get"]["responses"])
+        assert {"502", "503", "504"} <= codes

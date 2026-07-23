@@ -14,6 +14,7 @@ the result as typed JSON that another program can consume without ever touching 
 | **Interactive docs** | `/docs` (Swagger UI) and `/redoc` once running |
 | **Reflection** | [`REFLECTION.md`](REFLECTION.md) |
 | **Design records** | [`docs/adr/`](docs/adr/) |
+| **Operations** | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — deploy, health semantics, failure modes |
 
 ---
 
@@ -25,7 +26,7 @@ Requires Python 3.11+.
 git clone <this-repo> && cd flock-energy-api
 
 python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.txt      # or: pip install -r requirements.lock (hash-pinned)
 
 cp .env.example .env        # then fill in PORTAL_USERNAME / PORTAL_PASSWORD
 
@@ -234,11 +235,11 @@ traces never reach the client. A caller can always distinguish "upstream is down
 ## Testing
 
 ```bash
-make test          # 240 tests, no network required
+make test          # 245 tests, no network required
 make test-live     # 18 contract tests against the real portal (needs credentials)
 ```
 
-`make test` — 240 tests, **89% coverage**, no network. Payload fixtures are **recorded from
+`make test` — 245 tests, **89% coverage**, no network. Payload fixtures are **recorded from
 the live portal**, not hand-written: invented fixtures only prove the code agrees with my
 assumptions, recorded ones prove it agrees with the system it has to talk to.
 
@@ -354,6 +355,10 @@ on every request.
 | `PORTAL_MAX_CONCURRENCY` | `6` | Ceiling on concurrent upstream requests |
 | `PORTAL_MAX_RETRIES` | `3` | Retries for timeouts and 5xx |
 | `LOG_FORMAT` | `json` | `json` in production, `console` locally |
+
+`.env.example` documents all 24 settings. `requirements.txt` pins direct dependencies;
+`requirements.lock` additionally pins every transitive dependency with hashes for
+reproducible installs.
 
 **Secrets:** `.env` is git-ignored, credentials are held as pydantic `SecretStr`, and login
 failures never echo the request body. The portal's HMAC signing secret is fetched at runtime

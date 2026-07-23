@@ -185,6 +185,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(api_router, prefix=settings.api_prefix)
     _install_exception_handlers(app)
+    _use_real_error_schema(app)
 
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, Any]:
@@ -198,6 +199,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     return app
+
+
+def _use_real_error_schema(app: FastAPI) -> None:
+    """Replace FastAPI's advertised 422 body with the envelope we actually return.
+
+    FastAPI hardcodes ``HTTPValidationError`` (``{"detail": [...]}``) for validation
+    failures, but our handler returns ``{"error": {...}}``. Left uncorrected the spec
+    lies, and generated clients fail to deserialise every 422 they receive.
+    """
+    original_openapi = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        schema = original_openapi()
+        ref = {"$ref": "#/components/schemas/ErrorResponse"}
+        for operations in schema.get("paths", {}).values():
+            for operation in operations.values():
+                response = operation.get("responses", {}).get("422")
+                if response and "content" in response:
+                    response["content"]["application/json"]["schema"] = ref
+        # FastAPI's own validation schemas are now unreferenced.
+        for unused in ("HTTPValidationError", "ValidationError"):
+            schema.get("components", {}).get("schemas", {}).pop(unused, None)
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = openapi
 
 
 def _install_exception_handlers(app: FastAPI) -> None:
