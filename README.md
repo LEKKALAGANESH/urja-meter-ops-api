@@ -15,6 +15,7 @@ the result as typed JSON that another program can consume without ever touching 
 | **Reflection** | [`REFLECTION.md`](REFLECTION.md) |
 | **Design records** | [`docs/adr/`](docs/adr/) |
 | **Operations** | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — deploy, health semantics, failure modes |
+| **Web console** | `/app` once running — meters, hierarchy, consumption, map, data quality |
 
 ---
 
@@ -33,8 +34,10 @@ cp .env.example .env        # then fill in PORTAL_USERNAME / PORTAL_PASSWORD
 uvicorn app.main:app --reload
 ```
 
-Open <http://127.0.0.1:8000/docs>. On startup the service authenticates and pulls the whole
-meter estate — 403 meters and 40 transformers, in about 600 ms.
+Open <http://127.0.0.1:8000/app/> for the operations console, or
+<http://127.0.0.1:8000/docs> for the API documentation. On startup the service
+authenticates and pulls the whole meter estate — 403 meters and 40 transformers, in
+about 600 ms.
 
 <details>
 <summary>Docker instead</summary>
@@ -199,6 +202,20 @@ app/
 └── api/v1/            meters · hierarchy · transformers · system
 ```
 
+### Web console
+
+`/app` is a small operations console over the same API: estate overview, filterable meter
+table with detail drawer and consumption charts, the reconstructed network tree, a
+geographic scatter, and the data-quality report.
+
+Vanilla ES modules, no build step, no runtime dependencies — **19 KB gzipped total**. It is
+served under a strict `default-src 'self'` CSP with no `unsafe-inline`, which is why styles
+are applied through CSSOM rather than style attributes.
+
+Verified in a real browser: 0 console errors, WCAG 2.2 AA contrast in both themes
+(20 samples measured), full keyboard operation with a focus trap in the dialog, and no
+horizontal overflow at 320/480/768/1024/1440/1920 or at 640×320 landscape.
+
 ### Endpoints
 
 | Method | Path | Purpose |
@@ -235,11 +252,11 @@ traces never reach the client. A caller can always distinguish "upstream is down
 ## Testing
 
 ```bash
-make test          # 245 tests, no network required
+make test          # 261 tests, no network required
 make test-live     # 18 contract tests against the real portal (needs credentials)
 ```
 
-`make test` — 245 tests, **89% coverage**, no network. Payload fixtures are **recorded from
+`make test` — 261 tests, **89% coverage**, no network. Payload fixtures are **recorded from
 the live portal**, not hand-written: invented fixtures only prove the code agrees with my
 assumptions, recorded ones prove it agrees with the system it has to talk to.
 
@@ -302,8 +319,12 @@ store downgrading a complete snapshot to a degraded one during an upstream failu
 * **A persistent datastore.** Unjustifiable at 403 records; see *Scaling* for the threshold.
 * **Prometheus metrics.** Structured logs with request IDs and timings carry the same
   information for a service this size; wiring an exporter would be ceremony.
-* **A web client.** Listed as optional. I judged a well-tested API with an honest protocol
-  write-up more valuable than a thinner API plus a UI, and said so rather than half-doing both.
+* **A frontend framework and build step.** The console at `/app` is ~19 KB gzipped of
+  vanilla ES modules with zero runtime dependencies. React plus a bundler would add a
+  toolchain, a lockfile and ~45 KB for five views and a drawer.
+* **A tiled basemap.** The map view plots true relative geography as an SVG scatter. A
+  real basemap needs an external tile provider, which this service should not depend on
+  and the console's `default-src 'self'` CSP forbids.
 * **Crawling per-meter detail to enrich the snapshot.** The export already contains a
   superset. The SSR path is implemented and tested as a *fallback*, not the primary route.
 * **Retry on `POST`.** There are no upstream writes, so retry-safety questions don't arise.

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -21,6 +22,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles
 
 from .api.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
 from .api.v1.router import api_router
@@ -184,6 +186,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
 
     app.include_router(api_router, prefix=settings.api_prefix)
+    _mount_console(app)
     _install_exception_handlers(app)
     _use_real_error_schema(app)
 
@@ -192,6 +195,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {
             "service": settings.app_name,
             "version": settings.app_version,
+            "console": "/app/",
             "documentation": "/docs",
             "openapi": "/openapi.json",
             "api": settings.api_prefix,
@@ -199,6 +203,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     return app
+
+
+def _mount_console(app: FastAPI) -> None:
+    """Serve the operations console at /app, if its assets are present.
+
+    Guarded rather than assumed: the API is useful on its own, and a missing static
+    directory must not stop the service from starting.
+    """
+    static_dir = Path(__file__).parent / "static"
+    if not (static_dir / "index.html").exists():
+        logger.warning("console assets not found; /app will not be served")
+        return
+    app.mount("/app", StaticFiles(directory=static_dir, html=True), name="console")
 
 
 def _use_real_error_schema(app: FastAPI) -> None:

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Operations console for the Urja smart-meter estate: search, network hierarchy, consumption and data quality.">
+  <meta name="color-scheme" content="light dark">
+  <title>Urja Meter Ops Console</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="app-header">
+    <div class="app-header__bar">
+      <div class="brand">
+        <span class="brand__mark" aria-hidden="true">⚡</span>
+        <div>
+          <h1 class="brand__name">Urja Meter Ops</h1>
+          <p class="brand__sub">Operations console</p>
+        </div>
+      </div>
+
+      <div class="app-header__actions">
+        <p class="freshness" id="freshness" aria-live="polite">
+          <span class="freshness__dot" data-state="unknown" aria-hidden="true"></span>
+          <span id="freshness-text">Connecting…</span>
+        </p>
+        <button type="button" id="refresh" class="btn btn--ghost">
+          <span aria-hidden="true">⟳</span> Refresh
+        </button>
+        <button type="button" id="theme-toggle" class="btn btn--ghost" aria-pressed="false">
+          <span aria-hidden="true">◐</span> <span id="theme-label">Theme</span>
+        </button>
+      </div>
+    </div>
+
+    <nav class="tabs" aria-label="Sections">
+      <ul class="tabs__list" role="list">
+        <li><a class="tabs__link" href="#/overview"      data-view="overview">Overview</a></li>
+        <li><a class="tabs__link" href="#/meters"        data-view="meters">Meters</a></li>
+        <li><a class="tabs__link" href="#/network"       data-view="network">Network</a></li>
+        <li><a class="tabs__link" href="#/map"           data-view="map">Map</a></li>
+        <li><a class="tabs__link" href="#/quality"       data-view="quality">Data quality</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <noscript>
+    <div class="noscript">
+      <p><strong>This console requires JavaScript.</strong> It renders live data from the
+      Urja Meter Ops API in the browser.</p>
+      <p>The full API is available without JavaScript:
+        <a href="/docs">interactive documentation</a>,
+        <a href="/openapi.json">OpenAPI specification</a>, or query
+        <code>/api/v1/meters</code> directly.</p>
+    </div>
+  </noscript>
+
+  <main id="main" class="app-main" tabindex="-1">
+    <!-- Views are rendered here by app.js. Each owns its own loading/empty/error state. -->
+    <div id="view" class="view"></div>
+  </main>
+
+  <!-- Meter detail. A dialog rather than a route so the operator keeps their place in
+       the table; Escape and the close button both dismiss it. -->
+  <div id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+    <div class="drawer__scrim" data-close></div>
+    <section class="drawer__panel">
+      <header class="drawer__head">
+        <h2 id="drawer-title" class="drawer__title">Meter</h2>
+        <button type="button" class="btn btn--icon" data-close aria-label="Close meter details">
+          <span aria-hidden="true">✕</span>
+        </button>
+      </header>
+      <div id="drawer-body" class="drawer__body"></div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <footer class="app-footer">
+    <p>
+      Data proxied live from the legacy Urja portal.
+      <a href="/docs">API docs</a> ·
+      <a href="/openapi.json">OpenAPI</a> ·
+      <span id="footer-meta"></span>
+    </p>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

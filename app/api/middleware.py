@@ -76,8 +76,31 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault(
             "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
         )
-        if not request.url.path.startswith(("/docs", "/redoc")):
-            response.headers.setdefault(
-                "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"
-            )
+        policy = _policy_for(request.url.path)
+        if policy:
+            response.headers.setdefault("Content-Security-Policy", policy)
         return response
+
+
+#: The console loads its own stylesheet, ES modules and API responses, so it needs
+#: 'self' rather than the API's 'none'. It still ships no inline script and no inline
+#: style attribute source, so 'unsafe-inline' is deliberately absent.
+_APP_CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+    "connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; "
+    "frame-ancestors 'none'"
+)
+
+#: JSON endpoints load nothing at all, so they get the strictest possible policy.
+_API_CSP = "default-src 'none'; frame-ancestors 'none'"
+
+
+def _policy_for(path: str) -> str:
+    """Pick the tightest policy that still lets the response work.
+
+    Swagger UI and Redoc are excluded entirely: they inject inline scripts and styles,
+    so any policy strict enough to be worth setting would break them.
+    """
+    if path.startswith(("/docs", "/redoc")):
+        return ""
+    return _APP_CSP if path.startswith("/app") else _API_CSP
