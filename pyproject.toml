@@ -1,0 +1,31 @@
+[project]
+name = "flock-energy-api"
+version = "1.0.0"
+description = "A clean REST API over the legacy Urja Meter Ops portal"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 95
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "B008",    # FastAPI's Depends()/Query() in defaults is the documented idiom.
+    "RUF012",  # Pydantic/FastAPI class attrs do not need ClassVar annotations.
+    "N818",    # Portal* exception names already read as errors; the suffix adds noise.
+    "UP042",   # str+Enum keeps pydantic v2 serialisation explicit and predictable.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["*/__init__.py"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
