@@ -234,11 +234,22 @@ a:hover { color: var(--accent-hover); }
 
 /* ---------- Layout -------------------------------------------------- */
 
-.app-main { flex: 1; width: 100%; max-width: 1400px; margin: 0 auto; padding: var(--space-6) var(--space-5); }
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5);
+}
 .app-main:focus { outline: none; }
 
-.view { display: grid; gap: var(--space-5); }
+.view { display: grid; gap: var(--space-5); align-content: start; }
 .view > *, .grid > * { min-width: 0; }
+
+/* The router swaps this container's contents after first paint. Reserving the viewport
+   height means async content fills space that already exists, rather than creating it and
+   pushing the footer down (measured CLS 0.165 -> see README, Console verification). */
+#view { min-height: calc(100dvh - 12rem); }
 
 .view__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
 .view__title { font-size: var(--text-xl); }
@@ -407,7 +418,14 @@ a:hover { color: var(--accent-hover); }
   height: 1rem;
 }
 @keyframes shimmer { to { background-position: -200% 0; } }
-.skeleton-stack { display: grid; gap: var(--space-3); padding: var(--space-5); }
+.skeleton-stack {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  align-content: start;
+  /* Approximate the height of the content that replaces it. */
+  min-height: 260px;
+}
 
 /* ---------- Charts -------------------------------------------------- */
 
