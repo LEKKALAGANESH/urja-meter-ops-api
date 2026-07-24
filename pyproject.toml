@@ -4,6 +4,16 @@ version = "1.0.0"
 description = "A clean REST API over the legacy Urja Meter Ops portal"
 requires-python = ">=3.11"
 
+# Declare the build backend and the single package explicitly. Without this, a host that runs
+# `pip install .` (e.g. Vercel) hits setuptools' flat-layout "multiple top-level packages
+# discovered" error - app/, scripts/, tests/ all look like packages - and the build fails.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
+
 # Vercel: load the FastAPI instance explicitly, so the serverless build never has to guess
 # between candidate entrypoints. Resolves to the `app` object in app/main.py.
 [tool.vercel]
