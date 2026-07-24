@@ -4,7 +4,11 @@ The repo is configured for Vercel's canonical FastAPI setup - Vercel serves the 
 instance in `app/main.py` directly (no shim entrypoint):
 
 - **`pyproject.toml`** → `[tool.vercel] entrypoint = "app.main:app"` names the ASGI app
-  explicitly, so the build never guesses between candidate entrypoints.
+  explicitly, and **`[project].dependencies` lists the runtime deps** (in lockstep with
+  `requirements.txt`). The latter is load-bearing: Vercel installs from `pyproject.toml`, and
+  the build only compiles bytecode (it does not import), so an empty dependency list builds
+  green but then crashes **every** request at import with `ModuleNotFoundError: fastapi`
+  (`FUNCTION_INVOCATION_FAILED`). Keep the two dependency lists in sync.
 - **`vercel.json`** → a `functions` block for `app/main.py` with `maxDuration: 60` (headroom
   for a cold-start snapshot build) and `excludeFiles` to keep tests/video out of the bundle.
   No `rewrites` - Vercel routes the whole app automatically.
