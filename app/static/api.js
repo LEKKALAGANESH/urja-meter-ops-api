@@ -29,8 +29,8 @@ export class ApiError extends Error {
   }
 }
 
-/** Snapshot provenance from the last response, so the header can show data age. */
-export const freshness = { ageSeconds: null, source: null, builtAt: null };
+/** Snapshot age from the last response, so the header can show data freshness. */
+export const freshness = { ageSeconds: null };
 
 function buildUrl(path, params = {}) {
   const url = new URL(BASE + path, window.location.origin);
@@ -42,20 +42,19 @@ function buildUrl(path, params = {}) {
   return url;
 }
 
-async function request(path, params) {
+async function request(path, params, { method = 'GET' } = {}) {
   let response;
   try {
-    response = await fetch(buildUrl(path, params), { headers: { accept: 'application/json' } });
-  } catch (cause) {
+    response = await fetch(buildUrl(path, params), {
+      method,
+      headers: { accept: 'application/json' },
+    });
+  } catch {
     throw new ApiError('Network request failed', { code: 'network_error', status: 0 });
   }
 
   const age = response.headers.get('x-snapshot-age-seconds');
-  if (age !== null) {
-    freshness.ageSeconds = Number(age);
-    freshness.source = response.headers.get('x-snapshot-source');
-    freshness.builtAt = response.headers.get('x-snapshot-built-at');
-  }
+  if (age !== null) freshness.ageSeconds = Number(age);
 
   let body = null;
   try {
@@ -82,13 +81,10 @@ export const api = {
   meters: (params) => request('/meters', params),
   meter: (id) => request(`/meters/${encodeURIComponent(id)}`),
   consumption: (id, params) => request(`/meters/${encodeURIComponent(id)}/consumption`, params),
-  near: (params) => request('/meters/near', params),
   hierarchy: (depth = 7) => request('/hierarchy', { depth }),
-  transformers: (params) => request('/transformers', params),
 
-  refresh: async () => {
-    const response = await fetch(`${BASE}/system/snapshot/refresh`, { method: 'POST' });
-    if (!response.ok) throw new ApiError('Refresh failed', { status: response.status });
-    return response.json();
-  },
+  // POST through the same path as every other call, so a throttled (429) or upstream
+  // failure surfaces the server's error `code`/`message`/`request_id` and an actionable
+  // hint, instead of a generic "Refresh failed".
+  refresh: () => request('/system/snapshot/refresh', undefined, { method: 'POST' }),
 };

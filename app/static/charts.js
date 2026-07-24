@@ -39,55 +39,7 @@ export function formatNumber(value, digits = 1) {
   return Number(value.toFixed(digits)).toLocaleString();
 }
 
-/**
- * Line chart with an optional filled area.
- * @param {{label: string, value: number}[]} points
- */
-export function lineChart(points, { height = 220, yLabel = '', valueFormatter = formatNumber } = {}) {
-  const width = 720;
-  const pad = { top: 16, right: 16, bottom: 34, left: 52 };
-
-  if (!points.length) return emptyChart('No readings in this window');
-
-  const values = points.map((p) => p.value).filter((v) => v !== null && Number.isFinite(v));
-  const min = Math.min(0, ...values);
-  const max = Math.max(...values, min + 1);
-  const ticks = niceTicks(min, max);
-  const top = Math.max(max, ticks[ticks.length - 1]);
-
-  const plotW = width - pad.left - pad.right;
-  const plotH = height - pad.top - pad.bottom;
-  const x = (i) => pad.left + (points.length === 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
-  const y = (v) => pad.top + plotH - ((v - min) / (top - min || 1)) * plotH;
-
-  const svg = el('svg', {
-    class: 'chart', viewBox: `0 0 ${width} ${height}`, role: 'img',
-    'aria-label': `Line chart of ${yLabel || 'values'}. ${points.length} points, ` +
-      `ranging from ${valueFormatter(Math.min(...values))} to ${valueFormatter(Math.max(...values))}.`,
-  });
-
-  for (const tick of ticks) {
-    svg.append(el('line', { class: 'grid-line', x1: pad.left, x2: width - pad.right, y1: y(tick), y2: y(tick) }));
-    svg.append(el('text', { x: pad.left - 8, y: y(tick) + 4, 'text-anchor': 'end' }, valueFormatter(tick)));
-  }
-
-  const path = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value ?? min).toFixed(1)}`)
-    .join(' ');
-  svg.append(el('path', { class: 'series-area', d: `${path} L${x(points.length - 1)},${y(min)} L${x(0)},${y(min)} Z` }));
-  svg.append(el('path', { class: 'series-line', d: path }));
-
-  // Label only the first, middle and last x values — more would collide at this width.
-  for (const i of [0, Math.floor(points.length / 2), points.length - 1]) {
-    if (points[i]) {
-      svg.append(el('text', { x: x(i), y: height - 10, 'text-anchor': i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle' }, points[i].label));
-    }
-  }
-  svg.append(el('line', { class: 'axis-line', x1: pad.left, x2: width - pad.right, y1: y(min), y2: y(min) }));
-  return svg;
-}
-
-/** Vertical bar chart. Same data contract as {@link lineChart}. */
+/** Vertical bar chart over `{label, value}[]` points. */
 export function barChart(points, { height = 220, valueFormatter = formatNumber, yLabel = '' } = {}) {
   const width = 720;
   const pad = { top: 16, right: 16, bottom: 34, left: 52 };

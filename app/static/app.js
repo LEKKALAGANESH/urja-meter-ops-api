@@ -13,7 +13,7 @@
  */
 
 import { api, ApiError, freshness } from './api.js';
-import { barChart, formatNumber, lineChart, scatterMap } from './charts.js';
+import { barChart, formatNumber, scatterMap } from './charts.js';
 
 const viewRoot = document.getElementById('view');
 const drawer = document.getElementById('drawer');
@@ -162,11 +162,11 @@ function overviewView() {
     const pct = (n) => (total ? `${Math.round((n / total) * 100)}% of estate` : '—');
 
     const tiles = [
-      { label: 'Total meters', value: total, meta: `${stats.transformer_count} transformers`, tone: null },
+      { label: 'Total meters', value: total, meta: `${formatNumber(stats.transformer_count ?? 0, 0)} transformers`, tone: null },
       { label: 'Installed', value: status.installed ?? 0, meta: pct(status.installed ?? 0), tone: 'ok' },
       { label: 'Faulty', value: status.faulty ?? 0, meta: pct(status.faulty ?? 0), tone: 'warn' },
       { label: 'Decommissioned', value: status.decommissioned ?? 0, meta: pct(status.decommissioned ?? 0), tone: 'idle' },
-      { label: 'Records with issues', value: stats.with_data_quality_issues ?? 0, meta: `${quality.issue_count} distinct issues`, tone: null },
+      { label: 'Records with issues', value: stats.with_data_quality_issues ?? 0, meta: `${formatNumber(quality.issue_count ?? 0, 0)} distinct issues`, tone: null },
       { label: 'Network nodes', value: stats.hierarchy_nodes ?? 0, meta: 'across 7 levels', tone: null },
     ];
 
@@ -353,8 +353,10 @@ function metersView() {
   function sortHeader(column) {
     const active = metersState.sort === column.key;
     const ariaSort = active ? (metersState.order === 'asc' ? 'ascending' : 'descending') : 'none';
+    // aria-sort belongs on the columnheader (the <th> below), not the button - it is
+    // ignored on a <button> role. The button conveys its state through aria-label.
     const button = h('button', {
-      class: 'sort-btn', type: 'button', 'aria-sort': ariaSort,
+      class: 'sort-btn', type: 'button',
       'aria-label': `Sort by ${column.label}${active ? `, currently ${ariaSort}` : ''}`,
       onclick: () => {
         metersState.order = active && metersState.order === 'asc' ? 'desc' : 'asc';
@@ -374,6 +376,14 @@ function metersView() {
       phase_type: metersState.phase_type, build: metersState.build,
       sort: metersState.sort, order: metersState.order,
     }), (page) => {
+      // A shared or hand-edited URL can point past the last page. The API answers with an
+      // honest empty page; snap back to the last real page instead of showing a misleading
+      // "no matches" for filters that do in fact match.
+      if (page.meta.total_items > 0 && metersState.page > page.meta.total_pages) {
+        metersState.page = page.meta.total_pages;
+        loadMeters();
+        return skeleton(8);
+      }
       if (!page.items.length) {
         return stateBlock({
           icon: '∅', title: 'No meters match these filters',
@@ -447,7 +457,10 @@ function metersView() {
 let lastFocused = null;
 
 async function openMeter(meterId) {
-  lastFocused = document.activeElement;
+  // Capture the return-focus target only when opening from outside the drawer. The error
+  // "Try again" button calls openMeter again; capturing then would pin focus to a button
+  // that replaceChildren is about to detach, and closing would drop focus to <body>.
+  if (drawer.hidden) lastFocused = document.activeElement;
   drawerTitle.textContent = meterId;
   drawer.hidden = false;
   document.body.style.overflow = 'hidden';
@@ -580,15 +593,19 @@ function networkView() {
             node.children.map((child) => buildNode(child, depth + 1)))
         : null;
 
+      const nodeName = node.name ?? node.code ?? 'node';
       const toggle = hasChildren
         ? h('button', {
             class: 'tree__toggle', type: 'button',
             'aria-expanded': String(depth < 2),
-            'aria-label': `${depth < 2 ? 'Collapse' : 'Expand'} ${node.name ?? node.code ?? 'node'}`,
+            'aria-label': `${depth < 2 ? 'Collapse' : 'Expand'} ${nodeName}`,
             onclick: (event) => {
               const button = event.currentTarget;
               const open = button.getAttribute('aria-expanded') === 'true';
               button.setAttribute('aria-expanded', String(!open));
+              // Keep the accessible name in step with the state, or a collapsed node still
+              // announces "Collapse …" to a screen reader.
+              button.setAttribute('aria-label', `${open ? 'Expand' : 'Collapse'} ${nodeName}`);
               childList.hidden = open;
             },
           }, [h('span', { class: 'tree__chevron', 'aria-hidden': 'true', text: '▸' })])
