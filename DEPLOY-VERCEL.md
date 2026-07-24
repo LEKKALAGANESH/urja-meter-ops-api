@@ -1,13 +1,19 @@
 # Deploying to Vercel
 
-The repo ships a Vercel serverless entrypoint so it can deploy as-is:
+The repo is configured for Vercel's canonical FastAPI setup - Vercel serves the `app`
+instance in `app/main.py` directly (no shim entrypoint):
 
-- `api/index.py` - re-exports the ASGI `app` from `app.main` and calls `attach_runtime(app)`
-  eagerly at import, so `app.state.store` exists even when Vercel does not run ASGI lifespan
-  events (a [documented](https://community.vercel.com/t/python-fastapi-state-not-exist-on-vercel-but-does-locally-lifespan/2609)
-  edge case in previews and some runtimes).
-- `vercel.json` - rewrites every path to that function and gives it a 60 s `maxDuration`
-  (headroom for a cold-start snapshot build).
+- **`pyproject.toml`** → `[tool.vercel] entrypoint = "app.main:app"` names the ASGI app
+  explicitly, so the build never guesses between candidate entrypoints.
+- **`vercel.json`** → a `functions` block for `app/main.py` with `maxDuration: 60` (headroom
+  for a cold-start snapshot build) and `excludeFiles` to keep tests/video out of the bundle.
+  No `rewrites` - Vercel routes the whole app automatically.
+- **`.python-version`** → `3.12` (pins the runtime; the app is tested on 3.11 and 3.12).
+- **Lifespan-independent state:** the portal client/session/snapshot store attach lazily on
+  the first request (`app/api/deps.py::_ensure_runtime`), so the app works even when Vercel
+  does not run ASGI lifespan events (a
+  [documented](https://community.vercel.com/t/python-fastapi-state-not-exist-on-vercel-but-does-locally-lifespan/2609)
+  edge case) - no import-time work that could crash the function.
 
 ## Deploy
 

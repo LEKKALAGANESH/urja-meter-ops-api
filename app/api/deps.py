@@ -13,24 +13,38 @@ from fastapi import Depends, Query, Request
 
 from ..config import Settings, get_settings
 from ..domain.models import Page, PageMeta
-from ..errors import SnapshotUnavailableError, ValidationError
+from ..errors import ValidationError
 from ..portal.client import UrjaPortalClient
 from ..portal.session import PortalSession
 from ..store.snapshot import Snapshot, SnapshotStore
 
 
+def _ensure_runtime(request: Request) -> None:
+    """Attach the portal client/session/store if a request arrives before they exist.
+
+    On a normal uvicorn/container boot the lifespan builds them first. On serverless
+    platforms that do not reliably run ASGI lifespan events (e.g. Vercel), the first request
+    lands here instead; ``attach_runtime`` is idempotent, so this is a no-op once built. The
+    import is local to dodge a circular import at module load.
+    """
+    if getattr(request.app.state, "store", None) is None:
+        from ..main import attach_runtime
+
+        attach_runtime(request.app)
+
+
 def get_store(request: Request) -> SnapshotStore:
-    store = getattr(request.app.state, "store", None)
-    if store is None:  # pragma: no cover - only reachable if startup failed
-        raise SnapshotUnavailableError("Snapshot store is not initialised.")
-    return store
+    _ensure_runtime(request)
+    return request.app.state.store
 
 
 def get_client(request: Request) -> UrjaPortalClient:
+    _ensure_runtime(request)
     return request.app.state.portal_client
 
 
 def get_session(request: Request) -> PortalSession:
+    _ensure_runtime(request)
     return request.app.state.portal_session
 
 

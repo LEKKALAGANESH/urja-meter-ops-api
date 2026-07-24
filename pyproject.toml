@@ -4,6 +4,11 @@ version = "1.0.0"
 description = "A clean REST API over the legacy Urja Meter Ops portal"
 requires-python = ">=3.11"
 
+# Vercel: load the FastAPI instance explicitly, so the serverless build never has to guess
+# between candidate entrypoints. Resolves to the `app` object in app/main.py.
+[tool.vercel]
+entrypoint = "app.main:app"
+
 [tool.ruff]
 line-length = 95
 target-version = "py311"
