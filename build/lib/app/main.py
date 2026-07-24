@@ -159,33 +159,28 @@ def attach_runtime(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # The entire startup is best-effort and must never raise: on a serverless host a lifespan
-    # that throws is reported as FUNCTION_INVOCATION_FAILED for every request. Anything that
-    # fails here is logged and left to the lazy per-request initialisation instead.
-    try:
-        attach_runtime(app)
-        settings: Settings = app.state.settings
+    attach_runtime(app)
+    settings: Settings = app.state.settings
 
-        # Warm start. A failure - portal down, timeout, a cold-start hiccup - must not crash
-        # startup; the snapshot builds lazily on the first request regardless. On serverless
-        # prefer SNAPSHOT_REFRESH_ON_START=false to skip this call (see DEPLOY-VERCEL.md).
-        if settings.snapshot_refresh_on_start and settings.has_credentials:
-            try:
-                await app.state.store.get()
-            except Exception as exc:
-                logger.error(
-                    "initial snapshot build failed; starting anyway",
-                    extra={"error": f"{type(exc).__name__}: {exc}"},
-                )
+    # Best-effort warm start. Any failure here - portal down, timeout, a cold-start network
+    # hiccup on serverless - must never crash startup; the snapshot builds lazily on the
+    # first request regardless. On serverless prefer SNAPSHOT_REFRESH_ON_START=false to skip
+    # this network call entirely (see DEPLOY-VERCEL.md).
+    if settings.snapshot_refresh_on_start and settings.has_credentials:
+        try:
+            await app.state.store.get()
+        except Exception as exc:
+            logger.error(
+                "initial snapshot build failed; starting anyway",
+                extra={"error": f"{type(exc).__name__}: {exc}"},
+            )
 
-        # uvicorn only prints the base URL, so without this the console at /app/ is
-        # undiscoverable from the terminal.
-        logger.info(
-            "%s ready - console at /app/ , API docs at /docs , OpenAPI at /openapi.json",
-            settings.app_name,
-        )
-    except Exception:
-        logger.exception("startup failed; serving with lazy per-request initialisation")
+    # Tell the developer where the UI is - uvicorn only prints the base URL, so without this
+    # the console at /app/ is undiscoverable from the terminal.
+    logger.info(
+        "%s ready - console at /app/ , API docs at /docs , OpenAPI at /openapi.json",
+        settings.app_name,
+    )
 
     try:
         yield
