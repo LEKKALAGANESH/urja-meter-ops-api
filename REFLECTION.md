@@ -85,10 +85,12 @@ and should be separate classes. I noticed this while writing its tests, which is
 when you find out an abstraction is doing too much, and left it because splitting it late
 would have churned the layer everything else depends on.
 
-**Add one true end-to-end test.** I test the app with a fake store, and the portal client
-against a mocked transport, but nothing exercises the whole stack in a single test with the
-portal mocked at the HTTP boundary. That's the seam where an integration bug would hide, and
-it's the most valuable test I don't currently have.
+**Add one true end-to-end test.** *(Done — `tests/test_end_to_end.py`.)* I had tested the app
+with a fake store and the portal client against a mocked transport, but nothing exercised the
+whole stack in a single test with the portal mocked at the HTTP boundary — the seam where an
+integration bug would hide. That suite now drives the real app through `TestClient` with only
+the portal's HTTP responses faked, covering dependency wiring, lifespan ordering, session
+recovery, cross-layer error mapping and the snapshot economics.
 
 **Anomaly detection on consumption.** Zero-consumption runs on `Installed` meters, voltage
 excursions outside statutory limits, flatlined registers. The data supports all of it, and
@@ -178,7 +180,7 @@ of retry-exhaustion with mid-flight re-authentication — I test each separately
 together, and that combination is precisely where a subtle loop or a swallowed error would
 live.
 
-**Coverage is 89%, but it's unevenly distributed.** The domain layer — where the hard
+**Coverage is 91%, but it's unevenly distributed.** The domain layer — where the hard
 reasoning lives — is at 98–99%. `main.py` and parts of the portal client's error paths are
 lower. The number looks better than the weakest parts of the codebase actually are.
 
@@ -188,8 +190,10 @@ and I should be honest that those two facts point the same way. If the export en
 disappeared tomorrow, the fallback path works but produces a materially poorer API — and
 I've tested that it degrades, not that it degrades *acceptably*.
 
-**Finally, the thing I chose not to build:** no web client. The brief lists it as optional
-and I'd make the same call again — a well-tested API with an honest protocol write-up beats
-a thinner API plus a demo UI. But a reviewer interested in product sense gets less signal
-from this submission than one interested in engineering judgment, and that's a real gap
-rather than an oversight.
+**Finally, on the optional web client:** my instinct was to skip it — a well-tested API with
+an honest protocol write-up beats a thinner API plus a demo UI, and I still believe that
+ordering. I built the console at `/app` only after the API and its tests were solid, and kept
+it deliberately small: vanilla ES modules, no build step, under a strict `default-src 'self'`
+CSP, with every view designed for its empty/loading/error states and verified in a real
+browser. It earns its place by making the estate queries the portal can't answer *visible* —
+but it is the last thing I'd cut under time pressure, not the first thing I'd polish.

@@ -206,7 +206,8 @@ app/
 
 `/app` is a small operations console over the same API: estate overview, filterable meter
 table with detail drawer and consumption charts, the reconstructed network tree, a
-geographic scatter, and the data-quality report.
+geographic scatter, and the data-quality report. The meter table's filter, sort and page
+state lives in the URL hash, so a filtered view is shareable and survives a reload.
 
 Vanilla ES modules, no build step, no runtime dependencies — **19 KB gzipped total**. It is
 served under a strict `default-src 'self'` CSP with no `unsafe-inline`, which is why styles
@@ -233,7 +234,7 @@ horizontal overflow at 320/480/768/1024/1440/1920 or at 640×320 landscape.
 | `GET` | `/api/v1/stats` | Estate summary |
 | `GET` | `/api/v1/health/live` · `/health/ready` | Liveness · readiness |
 | `GET` | `/api/v1/system/snapshot` · `/system/session` | Snapshot and session provenance |
-| `POST` | `/api/v1/system/snapshot/refresh` | Force a rebuild |
+| `POST` | `/api/v1/system/snapshot/refresh` | Force a rebuild (throttled: `429` + `Retry-After` inside the min interval) |
 
 Every error uses one shape, so clients branch on `code` rather than parsing prose:
 
@@ -252,11 +253,11 @@ traces never reach the client. A caller can always distinguish "upstream is down
 ## Testing
 
 ```bash
-make test          # 261 tests, no network required
+make test          # 286 tests, no network required
 make test-live     # 18 contract tests against the real portal (needs credentials)
 ```
 
-`make test` — 261 tests, **89% coverage**, no network. Payload fixtures are **recorded from
+`make test` — 286 tests, **91% coverage**, no network. Payload fixtures are **recorded from
 the live portal**, not hand-written: invented fixtures only prove the code agrees with my
 assumptions, recorded ones prove it agrees with the system it has to talk to.
 
@@ -268,6 +269,12 @@ availability should never decide whether our build is green.
 
 Tests are named as the property they protect, not the function they call — e.g.
 `test_merging_by_code_would_have_been_wrong`, `test_consumption_is_the_delta_not_the_reading`.
+
+`tests/test_end_to_end.py` closes the one seam unit tests structurally cannot: it mocks
+**only** the portal's HTTP responses and drives the real app through `TestClient`, so
+dependency wiring, lifespan ordering, session recovery, cross-layer error mapping and the
+snapshot economics (many requests → one export; a refresh burst → one export) are all
+exercised end to end.
 
 Two real bugs were caught this way and are worth naming: the `{node_id:path}` route
 converter silently swallowing `/meters` (see `app/api/v1/hierarchy.py`), and the snapshot
@@ -315,7 +322,11 @@ store downgrading a complete snapshot to a degraded one during an upstream failu
 
 * **Authentication on our own API.** It's an internal service in this exercise, and a
   half-built auth model is worse than an explicitly absent one. `POST /system/snapshot/refresh`
-  is unauthenticated and should sit behind auth + rate limiting before real deployment.
+  is unauthenticated and should sit behind auth + per-client rate limiting before real
+  deployment. Because each rebuild costs one portal export, it already coalesces forced
+  refreshes to one per `SNAPSHOT_REFRESH_MIN_INTERVAL_SECONDS` (returning `429` +
+  `Retry-After` inside that window) so it cannot be used to amplify load on the legacy
+  portal — but that is a blast-radius guard, not a substitute for auth.
 * **A persistent datastore.** Unjustifiable at 403 records; see *Scaling* for the threshold.
 * **Prometheus metrics.** Structured logs with request IDs and timings carry the same
   information for a service this size; wiring an exporter would be ceremony.
@@ -371,6 +382,7 @@ on every request.
 | `PORTAL_USERNAME` / `PORTAL_PASSWORD` | *(required)* | Portal credentials |
 | `PORTAL_BASE_URL` | `https://urja-ops.flockenergy.tech` | Upstream base URL |
 | `SNAPSHOT_TTL_SECONDS` | `300` | Snapshot freshness window |
+| `SNAPSHOT_REFRESH_MIN_INTERVAL_SECONDS` | `30` | Min spacing between forced refreshes (`0` disables) |
 | `CONSUMPTION_CACHE_TTL_SECONDS` | `120` | Per-meter series cache |
 | `SESSION_REFRESH_MARGIN_SECONDS` | `120` | Refresh this long before expiry |
 | `PORTAL_MAX_CONCURRENCY` | `6` | Ceiling on concurrent upstream requests |

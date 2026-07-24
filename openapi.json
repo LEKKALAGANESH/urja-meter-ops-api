@@ -1461,7 +1461,7 @@
           "System"
         ],
         "summary": "Force a snapshot refresh",
-        "description": "Rebuild the index immediately, ignoring the TTL.\n\nDeliberately unauthenticated in this build because the service has no auth model at all (see README, *What I intentionally left out*). It is idempotent and read-only with respect to the portal, but it does cost one upstream export, so it should sit behind auth and a rate limit before any real deployment.",
+        "description": "Rebuild the index immediately, ignoring the TTL.\n\nDeliberately unauthenticated in this build because the service has no auth model at all (see README, *What I intentionally left out*). It is idempotent and read-only with respect to the portal, but each rebuild costs one upstream export. To stop that becoming an amplification vector against the legacy portal, forced refreshes are coalesced to at most one per `snapshot_refresh_min_interval_seconds`: a call arriving inside that window returns **429** with a `Retry-After` header instead of hitting the portal. Auth and per-client rate limiting are still recommended before any real deployment.",
         "operationId": "refresh_snapshot_api_v1_system_snapshot_refresh_post",
         "responses": {
           "200": {
@@ -1506,6 +1506,16 @@
           },
           "504": {
             "description": "The upstream portal did not respond in time.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Refresh requested again within the minimum interval.",
             "content": {
               "application/json": {
                 "schema": {
