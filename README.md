@@ -49,6 +49,11 @@ docker compose up --build
 ```
 </details>
 
+Any container host (Render, Fly.io, Cloud Run, ECS) runs the `Dockerfile` as-is and is the
+recommended target. A Vercel serverless entrypoint (`api/index.py` + `vercel.json`) is also
+included — see [`DEPLOY-VERCEL.md`](DEPLOY-VERCEL.md) for the steps and the stateless
+trade-offs.
+
 ### Verify it works
 
 ```bash

@@ -86,11 +86,19 @@ TAGS_METADATA = [
 ]
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    settings: Settings = app.state.settings
-    configure_logging(settings.log_level, settings.log_format)
+def attach_runtime(app: FastAPI) -> None:
+    """Build the portal session, client and snapshot store; hang them off ``app.state``.
 
+    Idempotent. The lifespan calls this on a normal uvicorn/container boot; the Vercel
+    serverless entrypoint (``api/index.py``) calls it eagerly at import, because serverless
+    platforms do not reliably run ASGI lifespan events - and without it ``app.state.store``
+    would be missing and every request would 503. The snapshot itself is still built lazily
+    on the first read, so this stays cheap and synchronous.
+    """
+    if getattr(app.state, "store", None) is not None:
+        return
+
+    settings: Settings = app.state.settings
     if not settings.has_credentials:
         # Loud, actionable, and does not leak the values themselves.
         logger.error(
@@ -141,9 +149,15 @@ async def lifespan(app: FastAPI):
     app.state.portal_client = client
     app.state.store = store
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    attach_runtime(app)
+    settings: Settings = app.state.settings
+
     if settings.snapshot_refresh_on_start and settings.has_credentials:
         try:
-            await store.get()
+            await app.state.store.get()
         except PortalError as exc:
             logger.error(
                 "initial snapshot build failed; starting anyway",
@@ -160,7 +174,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        await http.aclose()
+        await app.state.http.aclose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

@@ -1,0 +1,54 @@
+# Deploying to Vercel
+
+The repo ships a Vercel serverless entrypoint so it can deploy as-is:
+
+- `api/index.py` - re-exports the ASGI `app` from `app.main` and calls `attach_runtime(app)`
+  eagerly at import, so `app.state.store` exists even when Vercel does not run ASGI lifespan
+  events (a [documented](https://community.vercel.com/t/python-fastapi-state-not-exist-on-vercel-but-does-locally-lifespan/2609)
+  edge case in previews and some runtimes).
+- `vercel.json` - rewrites every path to that function and gives it a 60 s `maxDuration`
+  (headroom for a cold-start snapshot build).
+
+## Deploy
+
+1. **Import the repo** at <https://vercel.com/new>. Root Directory = the repo root (where
+   `requirements.txt` and `vercel.json` live). Vercel auto-detects the Python runtime.
+2. **Set environment variables** (Project → Settings → Environment Variables):
+
+   | Variable | Required | Notes |
+   |---|---|---|
+   | `PORTAL_USERNAME` | yes | Portal login |
+   | `PORTAL_PASSWORD` | yes | Portal password |
+   | `LOG_FORMAT` | no | `json` (default) |
+   | any other `Settings` field | no | see `.env.example` |
+
+3. **Deploy.** Then:
+   - `https://<deployment>/` redirects a browser to the console at `/app/`.
+   - `https://<deployment>/docs` serves the API docs.
+   - `https://<deployment>/api/v1/health/live` returns `{"status":"alive",...}`.
+
+## Verify (under 2 minutes)
+
+```bash
+curl -s https://<deployment>/api/v1/health/live      # {"status":"alive",...}
+curl -s https://<deployment>/api/v1/meters | head -c 200   # real data once creds are set
+```
+
+## Serverless trade-offs (why a container host is still recommended)
+
+This service keeps an **in-memory snapshot** of the estate, refreshed on a TTL, and uses
+per-process locks for single-flight refresh and the amplification throttle. Vercel runs
+**stateless, ephemeral functions**, so:
+
+- Each **cold start** is a fresh process with an empty snapshot; the first request after it
+  rebuilds the snapshot (one portal export) and is slower.
+- The **single-flight lock** and **refresh throttle** are per-instance, so concurrent
+  instances do not share them - the guarantees hold within an instance, not across the fleet.
+- There is no long-lived process to run the **proactive session refresh** or a background
+  TTL rebuild; work happens on request.
+
+For production, prefer a **persistent container host** - the existing `Dockerfile` runs
+anywhere: Render, Railway, Fly.io, Google Cloud Run (`--min-instances=1` to keep the snapshot
+warm), AWS ECS/Fargate, Azure Container Apps. Making Vercel a *good* fit means externalising
+the snapshot to a shared store (Vercel KV / Upstash Redis) plus a Vercel Cron refresh - the
+same scaling path the README documents under *Scaling*.
