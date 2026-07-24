@@ -34,8 +34,9 @@ cp .env.example .env        # then fill in PORTAL_USERNAME / PORTAL_PASSWORD
 uvicorn app.main:app --reload
 ```
 
-Open <http://127.0.0.1:8000/app/> for the operations console, or
-<http://127.0.0.1:8000/docs> for the API documentation. On startup the service
+Open <http://127.0.0.1:8000/> in a browser and it redirects to the operations console at
+`/app/`; <http://127.0.0.1:8000/docs> serves the API documentation. The startup log prints
+both paths. On startup the service
 authenticates and pulls the whole meter estate — 403 meters and 40 transformers, in
 about 600 ms.
 

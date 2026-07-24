@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
@@ -150,6 +150,13 @@ async def lifespan(app: FastAPI):
                 extra={"error": f"{type(exc).__name__}: {exc}"},
             )
 
+    # Tell the developer where the UI is - uvicorn only prints the base URL, so without this
+    # the console at /app/ is undiscoverable from the terminal.
+    logger.info(
+        "%s ready - console at /app/ , API docs at /docs , OpenAPI at /openapi.json",
+        settings.app_name,
+    )
+
     try:
         yield
     finally:
@@ -192,7 +199,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     _use_real_error_schema(app)
 
     @app.get("/", include_in_schema=False)
-    async def root() -> dict[str, Any]:
+    async def root(request: Request) -> Any:
+        # A browser opening the base URL should land on the console; API clients (curl,
+        # fetch, monitors) still get the machine-readable index. Content negotiation keeps
+        # both happy without a separate path.
+        if "text/html" in request.headers.get("accept", ""):
+            return RedirectResponse(url="/app/")
         return {
             "service": settings.app_name,
             "version": settings.app_version,

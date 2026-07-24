@@ -52,6 +52,17 @@ class TestConsoleIsServed:
     def test_root_advertises_the_console(self, client):
         assert client.get("/").json()["console"] == "/app/"
 
+    def test_root_redirects_a_browser_to_the_console(self, client):
+        """Opening the base URL in a browser should land on the console, not raw JSON."""
+        response = client.get("/", headers={"accept": "text/html"}, follow_redirects=False)
+        assert response.status_code in (307, 308)
+        assert response.headers["location"] == "/app/"
+
+    def test_root_still_serves_the_json_index_to_api_clients(self, client):
+        response = client.get("/", headers={"accept": "application/json"})
+        assert response.status_code == 200
+        assert response.json()["console"] == "/app/"
+
 
 class TestContentSecurityPolicyScoping:
     def test_console_policy_allows_its_own_assets(self, client):
