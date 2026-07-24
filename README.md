@@ -337,7 +337,9 @@ store downgrading a complete snapshot to a degraded one during an upstream failu
   real basemap needs an external tile provider, which this service should not depend on
   and the console's `default-src 'self'` CSP forbids.
 * **Crawling per-meter detail to enrich the snapshot.** The export already contains a
-  superset. The SSR path is implemented and tested as a *fallback*, not the primary route.
+  superset, so the snapshot's degraded fallback is the paginated *search* crawl, not this.
+  The per-meter SSR detail adapter (`get_meter_detail`) is implemented and unit-tested as a
+  reusable capability, but it is deliberately not on any live request path.
 * **Retry on `POST`.** There are no upstream writes, so retry-safety questions don't arise.
 
 ## What I'd do next
@@ -389,9 +391,10 @@ on every request.
 | `PORTAL_MAX_RETRIES` | `3` | Retries for timeouts and 5xx |
 | `LOG_FORMAT` | `json` | `json` in production, `console` locally |
 
-`.env.example` documents all 24 settings. `requirements.txt` pins direct dependencies;
-`requirements.lock` additionally pins every transitive dependency with hashes for
-reproducible installs.
+`.env.example` documents all 25 settings. `requirements.txt` pins direct dependencies;
+`requirements.lock` additionally pins every transitive dependency with sha256 hashes, and the
+Docker image builds from it with `--require-hashes`, so a compromised or yanked transitive
+release fails the build rather than shipping.
 
 **Secrets:** `.env` is git-ignored, credentials are held as pydantic `SecretStr`, and login
 failures never echo the request body. The portal's HMAC signing secret is fetched at runtime

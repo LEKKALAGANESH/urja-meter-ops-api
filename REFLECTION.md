@@ -180,9 +180,10 @@ of retry-exhaustion with mid-flight re-authentication — I test each separately
 together, and that combination is precisely where a subtle loop or a swallowed error would
 live.
 
-**Coverage is 91%, but it's unevenly distributed.** The domain layer — where the hard
-reasoning lives — is at 98–99%. `main.py` and parts of the portal client's error paths are
-lower. The number looks better than the weakest parts of the codebase actually are.
+**Coverage is 91%, but it's unevenly distributed.** The core reasoning modules —
+consumption, hierarchy, quality — sit at 97–99%; normalisation and the models are around
+90%. `main.py` and parts of the portal client's error paths are lower still. The number
+looks better than the weakest parts of the codebase actually are.
 
 **I'd challenge my own snapshot-versus-proxy decision in review.** It's the right call and I
 stand behind it, but it's also the decision that let me build the more interesting service,

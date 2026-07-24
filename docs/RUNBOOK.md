@@ -124,7 +124,7 @@ Consult `PROTOCOL.md`, then fix the adapter in `app/portal/`.
 
 ### 5. Memory growth
 
-Snapshot is ~280 KB at 403 meters (~710 bytes/meter); the consumption cache is LRU-bounded
+Snapshot is ~400 KB at 403 meters (~1 KB/meter); the consumption cache is LRU-bounded
 at `CONSUMPTION_CACHE_MAX_ENTRIES` (default 256). Sustained growth beyond a few tens of MB
 is a bug, not load — capture a heap snapshot before restarting.
 
