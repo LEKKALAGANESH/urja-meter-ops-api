@@ -3,6 +3,18 @@ name = "flock-energy-api"
 version = "1.0.0"
 description = "A clean REST API over the legacy Urja Meter Ops portal"
 requires-python = ">=3.11"
+# Runtime dependencies, kept in lockstep with requirements.txt. Declared here too because a
+# host that installs from pyproject.toml (e.g. Vercel's Python/FastAPI preset) would otherwise
+# install the app package with NO dependencies - the build still passes (it only compiles
+# bytecode) but every request then crashes at import with ModuleNotFoundError: fastapi.
+dependencies = [
+    "fastapi==0.139.2",
+    "uvicorn[standard]==0.38.0",
+    "httpx==0.28.1",
+    "pydantic==2.12.5",
+    "pydantic-settings==2.7.1",
+    "starlette==1.3.1",
+]
 
 # Declare the build backend and the single package explicitly. Without this, a host that runs
 # `pip install .` (e.g. Vercel) hits setuptools' flat-layout "multiple top-level packages
