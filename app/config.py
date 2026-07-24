@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -71,6 +71,24 @@ class Settings(BaseSettings):
     # bare empty value - would raise SettingsError and crash startup. NoDecode hands the raw
     # string to the validator below, which accepts "" -> [], "a,b" -> [...], and JSON arrays.
     cors_allow_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _ignore_blank_env_values(cls, data: object) -> object:
+        """Treat a present-but-empty env value as unset, so the field default applies.
+
+        Importing a ``.env`` into a host (e.g. Vercel) turns every line into a variable,
+        including blank ones like ``SNAPSHOT_TTL_SECONDS=``. pydantic cannot coerce ``""``
+        into an int/float/bool and would raise at construction - which, since Settings is
+        built at import, crashes the whole app. Dropping blank strings here makes a
+        half-filled env harmless. No field needs a caller-supplied empty string (credentials
+        and CORS already default sensibly).
+        """
+        if isinstance(data, dict):
+            return {
+                k: v for k, v in data.items() if not (isinstance(v, str) and v.strip() == "")
+            }
+        return data
 
     @field_validator("log_format")
     @classmethod

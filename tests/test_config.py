@@ -45,6 +45,27 @@ class TestCorsOriginsParsing:
         ]
 
 
+class TestBlankEnvValuesAreIgnored:
+    """A .env imported into a host creates present-but-empty vars; those must not crash
+    startup by failing to coerce '' into a typed field - the default should apply instead."""
+
+    def test_blank_int_env_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("SNAPSHOT_TTL_SECONDS", "")
+        assert _settings().snapshot_ttl_seconds == 300
+
+    def test_blank_bool_env_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("SNAPSHOT_REFRESH_ON_START", "")
+        assert _settings().snapshot_refresh_on_start is True
+
+    def test_blank_validated_str_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("LOG_FORMAT", "")
+        assert _settings().log_format == "json"
+
+    def test_a_real_value_is_still_honored(self, monkeypatch):
+        monkeypatch.setenv("SNAPSHOT_TTL_SECONDS", "999")
+        assert _settings().snapshot_ttl_seconds == 999
+
+
 class TestPaginationHonoursSettings:
     """DEFAULT_PAGE_SIZE / MAX_PAGE_SIZE are real knobs, not ignored constants."""
 
