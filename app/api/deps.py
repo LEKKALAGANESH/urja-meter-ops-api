@@ -13,7 +13,7 @@ from fastapi import Depends, Query, Request
 
 from ..config import Settings, get_settings
 from ..domain.models import Page, PageMeta
-from ..errors import SnapshotUnavailableError
+from ..errors import SnapshotUnavailableError, ValidationError
 from ..portal.client import UrjaPortalClient
 from ..portal.session import PortalSession
 from ..store.snapshot import Snapshot, SnapshotStore
@@ -75,12 +75,27 @@ class Pagination:
 
 def pagination(
     page: int = Query(1, ge=1, description="1-based page number."),
-    page_size: int = Query(25, ge=1, le=200, description="Items per page (max 200)."),
+    page_size: int | None = Query(
+        None,
+        ge=1,
+        description="Items per page. Defaults to DEFAULT_PAGE_SIZE, capped at MAX_PAGE_SIZE.",
+    ),
+    settings: Settings = Depends(get_config),
 ) -> Pagination:
     """Validated pagination parameters.
 
     Bounds are enforced here rather than passed through, because the portal's own
     pagination silently accepts nonsense - ``page=0`` and ``page=abc`` both return page 1,
     which makes a naive crawler duplicate rows without ever seeing an error.
+
+    The default page size and the ceiling come from settings
+    (``DEFAULT_PAGE_SIZE`` / ``MAX_PAGE_SIZE``), so they are real operational knobs rather
+    than constants that silently ignore the environment.
     """
-    return Pagination(page=page, page_size=page_size)
+    size = settings.default_page_size if page_size is None else page_size
+    if size > settings.max_page_size:
+        raise ValidationError(
+            "page_size exceeds the maximum allowed.",
+            details={"max_page_size": settings.max_page_size},
+        )
+    return Pagination(page=page, page_size=size)

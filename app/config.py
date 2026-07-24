@@ -8,9 +8,10 @@ producing a service that 401s on every request.
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -65,7 +66,11 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     default_page_size: int = Field(default=25, ge=1, le=200)
     max_page_size: int = Field(default=200, ge=1, le=1000)
-    cors_allow_origins: list[str] = Field(default_factory=list)
+    # NoDecode: pydantic-settings would otherwise JSON-decode this env value at the source
+    # level (before any validator runs), so the documented comma-separated form - and even a
+    # bare empty value - would raise SettingsError and crash startup. NoDecode hands the raw
+    # string to the validator below, which accepts "" -> [], "a,b" -> [...], and JSON arrays.
+    cors_allow_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
     @field_validator("log_format")
     @classmethod
@@ -78,6 +83,26 @@ class Settings(BaseSettings):
     @classmethod
     def _strip_trailing_slash(cls, v: str) -> str:
         return v.rstrip("/")
+
+    @field_validator("cors_allow_origins", mode="before")
+    @classmethod
+    def _parse_origins(cls, v: object) -> object:
+        """Accept the documented comma-separated form (and a JSON array) from the env.
+
+        Paired with ``NoDecode`` above: the raw env string arrives here instead of being
+        JSON-decoded by the settings source. A programmatic ``list`` (tests, code) passes
+        straight through.
+        """
+        if isinstance(v, str):
+            text = v.strip()
+            if not text:
+                return []
+            if text.startswith("["):
+                import json
+
+                return json.loads(text)
+            return [origin.strip() for origin in text.split(",") if origin.strip()]
+        return v
 
     @property
     def has_credentials(self) -> bool:
