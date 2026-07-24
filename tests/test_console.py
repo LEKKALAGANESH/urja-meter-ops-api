@@ -126,3 +126,25 @@ class TestConsoleHonoursItsOwnPolicy:
         html = (STATIC / "index.html").read_text(encoding="utf-8")
         assert "<noscript>" in html
         assert "/openapi.json" in html
+
+
+class TestShareableFilterState:
+    """The meters view claims filter state is reflected in the URL. Guard that the wiring
+    that makes it true actually exists, so the claim can never rot back to a dead comment.
+    Real browser behaviour (share + reload) is verified separately - see README."""
+
+    def test_state_is_read_from_and_written_to_the_url(self):
+        code = (STATIC / "app.js").read_text(encoding="utf-8")
+        assert "readMetersStateFromUrl" in code, "URL state must be parsed on entry"
+        assert "syncMetersStateToUrl" in code, "URL state must be reflected on change"
+        # replaceState, not a hash write: reflecting must not re-route and tear down the view.
+        assert "history.replaceState" in code
+        assert "URLSearchParams" in code
+
+    def test_url_reflection_is_wired_into_the_load_path(self):
+        code = (STATIC / "app.js").read_text(encoding="utf-8")
+        load_body = code.split("function loadMeters()", 1)[1].split("function ", 1)[0]
+        assert "syncMetersStateToUrl()" in load_body, (
+            "every filter/sort/page change routes through loadMeters, so the URL sync "
+            "belongs there or shared links silently drift from the visible state"
+        )

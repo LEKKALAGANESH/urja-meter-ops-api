@@ -24,11 +24,13 @@ const toast = document.getElementById('toast');
 const STATUS_TONE = { installed: 'ok', faulty: 'warn', decommissioned: 'idle' };
 const PAGE_SIZE = 25;
 
-/** Meters-view state, mirrored into the URL hash so views are shareable and reloadable. */
-const metersState = {
+/** Meters-view state. The URL hash is the source of truth: it is parsed on entry and
+ *  reflected back on every change, so a filtered view is shareable and survives reload. */
+const METERS_DEFAULTS = Object.freeze({
   page: 1, search: '', make: '', install_status: '', phase_type: '', build: '',
   sort: 'meter_id', order: 'asc',
-};
+});
+const metersState = { ...METERS_DEFAULTS };
 
 // ---------------------------------------------------------------- helpers
 
@@ -246,7 +248,45 @@ const FILTERS = [
   { key: 'build', label: 'Data model', options: ['legacy', 'v2'] },
 ];
 
+/** Rebuild metersState from the hash query, defaults first. Only known, valid values are
+ *  accepted, so a hand-edited URL can never inject an unexpected filter or sort key. */
+function readMetersStateFromUrl() {
+  const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+  const state = { ...METERS_DEFAULTS };
+
+  const page = Number.parseInt(params.get('page') ?? '', 10);
+  if (Number.isInteger(page) && page > 0) state.page = page;
+
+  const search = (params.get('search') ?? '').trim();
+  if (search) state.search = search;
+
+  for (const filter of FILTERS) {
+    const value = params.get(filter.key);
+    if (value && filter.options.includes(value)) state[filter.key] = value;
+  }
+
+  const sort = params.get('sort');
+  if (sort && SORTABLE.some((column) => column.key === sort)) state.sort = sort;
+
+  if (params.get('order') === 'desc') state.order = 'desc';
+
+  return state;
+}
+
+/** Reflect the current filters into the address bar. Uses replaceState so it does NOT fire
+ *  hashchange — the view is not torn down on every keystroke, only the URL is kept current. */
+function syncMetersStateToUrl() {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(metersState)) {
+    if (value !== METERS_DEFAULTS[key] && value !== '') params.set(key, String(value));
+  }
+  const query = params.toString();
+  window.history.replaceState(null, '', query ? `#/meters?${query}` : '#/meters');
+}
+
 function metersView() {
+  Object.assign(metersState, readMetersStateFromUrl());
+
   const results = h('div', { class: 'card' });
 
   const searchInput = h('input', {
@@ -327,6 +367,7 @@ function metersView() {
   }
 
   function loadMeters() {
+    syncMetersStateToUrl();
     renderAsync(results, () => api.meters({
       page: metersState.page, page_size: PAGE_SIZE, search: metersState.search,
       make: metersState.make, install_status: metersState.install_status,
