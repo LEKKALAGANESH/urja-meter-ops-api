@@ -34,7 +34,11 @@ def portal_routes(respx_mock, *, meters=None, dts=None, energy=None):
     respx_mock.post(f"{PORTAL}/api/auth/sign-in/email").mock(
         return_value=httpx.Response(
             200,
-            json={"token": "t", "user": {}, "session": {"expiresAt": "2099-01-01T00:00:00.000Z"}},
+            json={
+                "token": "t",
+                "user": {},
+                "session": {"expiresAt": "2099-01-01T00:00:00.000Z"},
+            },
             headers={"set-cookie": COOKIE},
         )
     )
@@ -46,8 +50,11 @@ def portal_routes(respx_mock, *, meters=None, dts=None, energy=None):
     )
     respx_mock.get(f"{PORTAL}/portal/dts").mock(
         return_value=httpx.Response(
-            200, json={"data": dts if dts is not None else load_fixture("dts_page1.json")["data"],
-                       "total": len(dts) if dts is not None else 8}
+            200,
+            json={
+                "data": dts if dts is not None else load_fixture("dts_page1.json")["data"],
+                "total": len(dts) if dts is not None else 8,
+            },
         )
     )
     rows = meters if meters is not None else load_fixture("export_sample.json")["data"]
@@ -56,7 +63,12 @@ def portal_routes(respx_mock, *, meters=None, dts=None, energy=None):
     )
     respx_mock.get(url__regex=rf"{PORTAL}/portal/meters/.+/energy").mock(
         return_value=httpx.Response(
-            200, json={"data": energy if energy is not None else load_fixture("energy_30min.json")["data"]}
+            200,
+            json={
+                "data": energy
+                if energy is not None
+                else load_fixture("energy_30min.json")["data"]
+            },
         )
     )
     return respx_mock
@@ -70,6 +82,7 @@ def settings() -> Settings:
         portal_password="secret",
         snapshot_refresh_on_start=True,
         snapshot_ttl_seconds=300,
+        snapshot_refresh_min_interval_seconds=0,  # economics tests below force refreshes
         log_format="console",
     )
 
@@ -114,7 +127,6 @@ class TestColdStartToResponse:
         portal_routes(respx_mock)
         with TestClient(create_app(settings)):
             pass
-        request = respx_mock.calls.last.request if respx_mock.calls else None
         export_calls = [c for c in respx_mock.calls if "/portal/export" in str(c.request.url)]
         assert export_calls, "export was never called"
         headers = export_calls[0].request.headers
@@ -174,8 +186,9 @@ class TestUpstreamFailurePropagation:
         portal_routes(respx_mock)
         with TestClient(create_app(settings)) as client:
             respx_mock.get(url__regex=rf"{PORTAL}/portal/meters/.+/energy").mock(
-                return_value=httpx.Response(200, text="<!doctype html>",
-                                            headers={"content-type": "text/html"})
+                return_value=httpx.Response(
+                    200, text="<!doctype html>", headers={"content-type": "text/html"}
+                )
             )
             response = client.get("/api/v1/meters/J100001/consumption")
         assert response.status_code == 502
@@ -221,6 +234,26 @@ class TestSnapshotEconomicsUnderRealRequestFlow:
             client.post("/api/v1/system/snapshot/refresh")
         exports = [c for c in respx_mock.calls if "/portal/export" in str(c.request.url)]
         assert len(exports) == 2
+
+    def test_refresh_burst_is_throttled_to_protect_the_portal(self, respx_mock, settings):
+        """The unauthenticated refresh endpoint must not amplify load on the portal.
+
+        With a live interval, a burst of forced refreshes coalesces: the first rebuilds,
+        the rest get 429 + Retry-After and never reach the portal - one export, not many.
+        """
+        portal_routes(respx_mock)
+        throttled = settings.model_copy(update={"snapshot_refresh_min_interval_seconds": 300})
+        with TestClient(create_app(throttled)) as client:
+            statuses = [
+                client.post("/api/v1/system/snapshot/refresh").status_code for _ in range(5)
+            ]
+            coalesced = client.post("/api/v1/system/snapshot/refresh")
+        assert statuses[0] == 200
+        assert statuses[1:] == [429, 429, 429, 429]
+        assert coalesced.json()["error"]["code"] == "refresh_throttled"
+        assert coalesced.headers["retry-after"] == "300"
+        exports = [c for c in respx_mock.calls if "/portal/export" in str(c.request.url)]
+        assert len(exports) == 2  # one on startup, one for the first forced refresh
 
     def test_repeat_consumption_reads_hit_the_cache(self, respx_mock, settings):
         portal_routes(respx_mock)

@@ -119,7 +119,7 @@ def to_float(value: Any) -> float | None:
     """
     if value is None or isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return float(value)
     text = clean_text(value)
     if text is None:

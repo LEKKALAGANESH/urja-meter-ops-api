@@ -96,6 +96,61 @@ class TestSnapshotFreshness:
         assert client.export_calls == 1
 
 
+class TestForcedRefreshThrottle:
+    """The amplification guard on the unauthenticated refresh endpoint.
+
+    Each forced rebuild costs one portal export; without a floor between them an
+    unauthenticated caller could turn request volume into upstream export volume.
+    """
+
+    async def test_a_burst_of_forced_refreshes_costs_one_forced_export(self):
+        """Ten concurrent forced refreshes: the first rebuilds, the other nine coalesce."""
+        client = FakeClient()
+        store = SnapshotStore(client, ttl_seconds=300, refresh_min_interval_seconds=300)
+        await store.get()  # startup export (1)
+        results = await asyncio.gather(*(store.refresh_now() for _ in range(10)))
+        assert client.export_calls == 2  # startup + exactly one forced rebuild
+        assert sum(1 for _, refreshed in results if refreshed) == 1
+
+    async def test_first_forced_refresh_after_a_read_still_rebuilds(self):
+        """A TTL-driven build must never block the operator's first manual refresh."""
+        client = FakeClient()
+        store = SnapshotStore(client, ttl_seconds=300, refresh_min_interval_seconds=300)
+        await store.get()
+        _, refreshed = await store.refresh_now()
+        assert refreshed is True
+        assert client.export_calls == 2
+
+    async def test_second_forced_refresh_inside_the_window_is_coalesced(self):
+        client = FakeClient()
+        store = SnapshotStore(client, ttl_seconds=300, refresh_min_interval_seconds=300)
+        await store.get()
+        await store.refresh_now()
+        _, refreshed = await store.refresh_now()
+        assert refreshed is False
+        assert client.export_calls == 2
+
+    async def test_refresh_is_allowed_again_once_the_interval_elapses(self):
+        client = FakeClient()
+        store = SnapshotStore(client, ttl_seconds=300, refresh_min_interval_seconds=30)
+        await store.get()
+        await store.refresh_now()  # sets the forced-refresh marker
+        # Simulate the interval having passed without sleeping: monotonic, so we rewind
+        # the marker rather than the wall clock.
+        store._last_forced_refresh_monotonic -= 31
+        _, refreshed = await store.refresh_now()
+        assert refreshed is True
+        assert client.export_calls == 3
+
+    async def test_zero_interval_disables_the_throttle(self):
+        client = FakeClient()
+        store = SnapshotStore(client, ttl_seconds=300, refresh_min_interval_seconds=0)
+        await store.get()
+        _, refreshed = await store.refresh_now()
+        assert refreshed is True
+        assert client.export_calls == 2
+
+
 class TestDegradation:
     async def test_failed_refresh_keeps_serving_stale_data(self):
         """Stale data with an honest age beats a 503. The core resilience property."""

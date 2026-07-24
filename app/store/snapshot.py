@@ -91,6 +91,7 @@ class SnapshotStore:
         ttl_seconds: int = 300,
         consumption_ttl_seconds: int = 120,
         consumption_max_entries: int = 256,
+        refresh_min_interval_seconds: int = 0,
     ) -> None:
         self._client = client
         self._ttl = ttl_seconds
@@ -98,6 +99,12 @@ class SnapshotStore:
         self._lock = asyncio.Lock()
         self._refresh_count = 0
         self._last_error: str | None = None
+
+        # Minimum spacing between *forced* refreshes (the unauthenticated refresh endpoint).
+        # 0 disables it. Monotonic so a wall-clock change can never widen or collapse it.
+        # Tracks forced refreshes only, so TTL-driven rebuilds never block a manual one.
+        self._refresh_min_interval = refresh_min_interval_seconds
+        self._last_forced_refresh_monotonic: float | None = None
 
         # Per-meter time series are fetched live (they are not in the export) and cached
         # briefly with LRU eviction, so a dashboard polling one meter does not hammer the
@@ -130,27 +137,67 @@ class SnapshotStore:
             # Another coroutine may have rebuilt while we waited for the lock.
             if not force_refresh and self._snapshot is not None and not self.is_stale():
                 return self._snapshot
-            try:
-                # Only accept the degraded search-crawl fallback when we have nothing at
-                # all. Replacing a complete (if stale) snapshot with one that has no
-                # hierarchy and no coordinates would be a downgrade, not a recovery.
-                self._snapshot = await self._build(
-                    allow_degraded_fallback=self._snapshot is None
-                )
-                self._refresh_count += 1
-                self._last_error = None
-            except PortalError as exc:
-                self._last_error = f"{type(exc).__name__}: {exc}"
-                if self._snapshot is None:
-                    raise
-                logger.error(
-                    "snapshot refresh failed; continuing to serve stale data",
-                    extra={
-                        "error": self._last_error,
-                        "stale_age_seconds": self._snapshot.age_seconds(),
-                    },
-                )
-            return self._snapshot
+            return await self._rebuild_under_lock()
+
+    async def _rebuild_under_lock(self) -> Snapshot:
+        """Rebuild the snapshot. **Caller must hold ``self._lock``.**
+
+        A failed rebuild keeps the previous snapshot (if any) and records the error rather
+        than raising - stale-but-honest beats down. Propagates only when there is nothing
+        to fall back on.
+        """
+        try:
+            # Only accept the degraded search-crawl fallback when we have nothing at
+            # all. Replacing a complete (if stale) snapshot with one that has no
+            # hierarchy and no coordinates would be a downgrade, not a recovery.
+            self._snapshot = await self._build(allow_degraded_fallback=self._snapshot is None)
+            self._refresh_count += 1
+            self._last_error = None
+        except PortalError as exc:
+            self._last_error = f"{type(exc).__name__}: {exc}"
+            if self._snapshot is None:
+                raise
+            logger.error(
+                "snapshot refresh failed; continuing to serve stale data",
+                extra={
+                    "error": self._last_error,
+                    "stale_age_seconds": self._snapshot.age_seconds(),
+                },
+            )
+        return self._snapshot
+
+    @property
+    def refresh_min_interval_seconds(self) -> int:
+        return self._refresh_min_interval
+
+    async def refresh_now(self) -> tuple[Snapshot, bool]:
+        """Forced refresh that honours the minimum interval between forced refreshes.
+
+        The refresh endpoint is unauthenticated (the service has no auth model), so without
+        this a caller could force one portal export per request and amplify load on the
+        legacy portal without bound. When a forced refresh occurred within
+        ``refresh_min_interval_seconds``, this coalesces: it returns the current snapshot
+        and reports ``refreshed=False`` rather than hitting the portal again, capping the
+        forced-export rate at one per interval regardless of caller volume.
+
+        The interval check and the rebuild share the store lock, so a concurrent burst
+        rebuilds exactly once - the first through the gate wins and the rest coalesce.
+
+        Returns:
+            ``(snapshot, refreshed)`` - ``refreshed`` is False when the call was coalesced.
+        """
+        async with self._lock:
+            last = self._last_forced_refresh_monotonic
+            if (
+                self._snapshot is not None
+                and self._refresh_min_interval > 0
+                and last is not None
+                and (time.monotonic() - last) < self._refresh_min_interval
+            ):
+                return self._snapshot, False
+            snapshot = await self._rebuild_under_lock()
+            self._last_forced_refresh_monotonic = time.monotonic()
+            return snapshot, True
 
     async def _build(self, *, allow_degraded_fallback: bool = True) -> Snapshot:
         """Fetch, normalise, repair and index the estate.

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Response
 
 from ...config import Settings
 from ...domain.models import DataQualityReport, SnapshotInfo
-from ...errors import ErrorResponse
+from ...errors import ErrorResponse, RefreshThrottledError
 from ...portal.exceptions import PortalError
 from ...portal.session import PortalSession
 from ...store.snapshot import Snapshot, SnapshotStore
@@ -97,12 +97,24 @@ async def snapshot_info(store: SnapshotStore = Depends(get_store)) -> SnapshotIn
         "Rebuild the index immediately, ignoring the TTL.\n\n"
         "Deliberately unauthenticated in this build because the service has no auth model "
         "at all (see README, *What I intentionally left out*). It is idempotent and "
-        "read-only with respect to the portal, but it does cost one upstream export, so "
-        "it should sit behind auth and a rate limit before any real deployment."
+        "read-only with respect to the portal, but each rebuild costs one upstream export. "
+        "To stop that becoming an amplification vector against the legacy portal, forced "
+        "refreshes are coalesced to at most one per "
+        "`snapshot_refresh_min_interval_seconds`: a call arriving inside that window "
+        "returns **429** with a `Retry-After` header instead of hitting the portal. Auth "
+        "and per-client rate limiting are still recommended before any real deployment."
     ),
+    responses={
+        429: {
+            "model": ErrorResponse,
+            "description": "Refresh requested again within the minimum interval.",
+        }
+    },
 )
 async def refresh_snapshot(store: SnapshotStore = Depends(get_store)) -> SnapshotInfo:
-    await store.get(force_refresh=True)
+    _, refreshed = await store.refresh_now()
+    if not refreshed:
+        raise RefreshThrottledError(retry_after_seconds=store.refresh_min_interval_seconds)
     return store.info()
 
 

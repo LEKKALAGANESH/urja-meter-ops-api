@@ -125,6 +125,27 @@ class SnapshotUnavailableError(ApiError):
     message = "The meter snapshot has not been built yet. Retry shortly."
 
 
+class RefreshThrottledError(ApiError):
+    """A forced snapshot refresh was requested again within its minimum interval.
+
+    A genuine 429 (caller-side), unlike :class:`UpstreamRateLimitedError`'s 503: this
+    *caller* asked to rebuild too soon. The refresh endpoint is unauthenticated and every
+    rebuild costs one portal export, so bursts are coalesced to cap load on the legacy
+    portal. The current snapshot is already fresh; retry after the advertised delay, echoed
+    in a ``Retry-After`` header.
+    """
+
+    status_code = 429
+    code = "refresh_throttled"
+    message = "A snapshot refresh was requested too soon after the last. Retry shortly."
+
+    def __init__(
+        self, message: str | None = None, *, retry_after_seconds: float | None = None
+    ):
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
+
+
 # --- OpenAPI representation of the contract above --------------------------
 
 

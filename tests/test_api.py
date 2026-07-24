@@ -59,11 +59,19 @@ class FakeStore:
         self.snapshot = snapshot
         self.readings_error: Exception | None = None
         self.refresh_calls = 0
+        self.refresh_min_interval_seconds = 0
+        self.refresh_now_throttled = False
 
     async def get(self, *, force_refresh: bool = False) -> Snapshot:
         if force_refresh:
             self.refresh_calls += 1
         return self.snapshot
+
+    async def refresh_now(self) -> tuple[Snapshot, bool]:
+        if self.refresh_now_throttled:
+            return self.snapshot, False
+        self.refresh_calls += 1
+        return self.snapshot, True
 
     async def get_readings(self, meter_id: str):
         if self.readings_error:
@@ -318,6 +326,16 @@ class TestSystem:
     def test_forced_refresh_calls_the_store(self, client, store):
         assert client.post("/api/v1/system/snapshot/refresh").status_code == 200
         assert store.refresh_calls == 1
+
+    def test_throttled_refresh_returns_429_without_hitting_the_portal(self, client, store):
+        """A coalesced refresh must be a 429 that never triggers an export."""
+        store.refresh_now_throttled = True
+        store.refresh_min_interval_seconds = 30
+        response = client.post("/api/v1/system/snapshot/refresh")
+        assert response.status_code == 429
+        assert response.json()["error"]["code"] == "refresh_throttled"
+        assert response.headers["retry-after"] == "30"
+        assert store.refresh_calls == 0
 
     def test_data_quality_reports_upstream_anomalies(self, client):
         body = client.get("/api/v1/data-quality").json()

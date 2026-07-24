@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     # --- Snapshot / freshness --------------------------------------------
     snapshot_ttl_seconds: int = Field(default=300, ge=0)
     snapshot_refresh_on_start: bool = Field(default=True)
+    # Minimum spacing between forced refreshes via the unauthenticated refresh endpoint.
+    # Caps portal export load under a burst; 0 disables the throttle. See the endpoint and
+    # README, *What I intentionally left out* (auth/rate-limiting).
+    snapshot_refresh_min_interval_seconds: int = Field(default=30, ge=0)
     consumption_cache_ttl_seconds: int = Field(default=120, ge=0)
     consumption_cache_max_entries: int = Field(default=256, ge=1)
 

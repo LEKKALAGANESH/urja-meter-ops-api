@@ -133,6 +133,7 @@ async def lifespan(app: FastAPI):
         ttl_seconds=settings.snapshot_ttl_seconds,
         consumption_ttl_seconds=settings.consumption_cache_ttl_seconds,
         consumption_max_entries=settings.consumption_cache_max_entries,
+        refresh_min_interval_seconds=settings.snapshot_refresh_min_interval_seconds,
     )
 
     app.state.http = http
@@ -255,8 +256,14 @@ def _install_exception_handlers(app: FastAPI) -> None:
     async def handle_api_error(_: Request, exc: ApiError) -> JSONResponse:
         if exc.status_code >= 500:
             logger.error("api error", extra={"code": exc.code, "detail": exc.message})
+        headers = {}
+        retry_after = getattr(exc, "retry_after_seconds", None)
+        if retry_after:
+            headers["Retry-After"] = str(int(retry_after))
         return JSONResponse(
-            status_code=exc.status_code, content=exc.to_payload(get_request_id())
+            status_code=exc.status_code,
+            content=exc.to_payload(get_request_id()),
+            headers=headers,
         )
 
     @app.exception_handler(PortalError)
@@ -313,7 +320,7 @@ def _map_portal_error(exc: PortalError) -> ApiError:
         return UpstreamTimeoutError()
     if isinstance(exc, PortalUnavailable):
         return UpstreamUnavailableError()
-    if isinstance(exc, (PortalAuthError, PortalSessionExpired)):
+    if isinstance(exc, PortalAuthError | PortalSessionExpired):
         return UpstreamAuthError()
     if isinstance(exc, PortalProtocolError):
         return UpstreamError(

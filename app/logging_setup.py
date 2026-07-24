@@ -74,7 +74,7 @@ class ConsoleFormatter(logging.Formatter):
 
 
 def _coerce(value: Any) -> Any:
-    if isinstance(value, (str, int, float, bool, type(None), list, dict)):
+    if isinstance(value, str | int | float | bool | type(None) | list | dict):
         return value
     return str(value)
 
