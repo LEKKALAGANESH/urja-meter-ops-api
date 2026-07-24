@@ -1,5 +1,12 @@
 # Flock Energy — Urja Meter Ops API
 
+[![CI](https://github.com/LEKKALAGANESH/urja-meter-ops-api/actions/workflows/ci.yml/badge.svg)](https://github.com/LEKKALAGANESH/urja-meter-ops-api/actions/workflows/ci.yml)
+![Python 3.11 | 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
+![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen)
+![Tests](https://img.shields.io/badge/tests-286%20passing-brightgreen)
+![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1-6BA539)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A clean, documented REST API over the legacy **Urja Meter Ops** portal, which has no API of
 its own.
 
@@ -17,6 +24,29 @@ the result as typed JSON that another program can consume without ever touching 
 | **Operations** | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — deploy, health semantics, failure modes |
 | **Web console** | `/app` once running — meters, hierarchy, consumption, map, data quality |
 | **Walkthrough** | [`docs/walkthrough/`](docs/walkthrough/) — full video + [coverage report](docs/walkthrough/COVERAGE.md) |
+
+<details>
+<summary><strong>Contents</strong></summary>
+
+- [Screenshots](#screenshots)
+- [Quickstart](#quickstart)
+- [Sample request](#sample-request)
+- [What I built](#what-i-built)
+  - [The three findings that shaped it](#the-three-findings-that-shaped-it)
+  - [Architecture](#architecture)
+  - [Web console](#web-console)
+  - [Endpoints](#endpoints)
+- [Testing](#testing)
+- [Assumptions](#assumptions)
+- [Design decisions & trade-offs](#design-decisions--trade-offs)
+- [What I intentionally left out](#what-i-intentionally-left-out)
+- [What I'd do next](#what-id-do-next)
+- [Scaling](#scaling)
+- [Configuration](#configuration)
+- [Development](#development)
+- [License](#license)
+
+</details>
 
 ---
 
@@ -42,7 +72,7 @@ A continuous video walkthrough over **403 real meters** lives at
 Requires Python 3.11+.
 
 ```bash
-git clone <this-repo> && cd flock-energy-api
+git clone https://github.com/LEKKALAGANESH/urja-meter-ops-api.git && cd urja-meter-ops-api
 
 python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -r requirements.txt      # or: pip install -r requirements.lock (hash-pinned)
@@ -438,3 +468,7 @@ make docker     # build the image
 
 CI (GitHub Actions) runs lint, tests on Python 3.11 and 3.12 with an 80% coverage floor,
 verifies `openapi.json` is not stale, and builds the Docker image.
+
+## License
+
+[MIT](LICENSE) © Lekkala Ganesh
