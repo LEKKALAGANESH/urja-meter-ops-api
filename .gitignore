@@ -22,3 +22,8 @@ coverage.xml
 .idea/
 .DS_Store
 Thumbs.db
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
