@@ -170,15 +170,16 @@ class SnapshotStore:
     def refresh_min_interval_seconds(self) -> int:
         return self._refresh_min_interval
 
-    async def refresh_now(self) -> tuple[Snapshot, bool]:
+    async def refresh_now(self) -> tuple[Snapshot | None, bool]:
         """Forced refresh that honours the minimum interval between forced refreshes.
 
         The refresh endpoint is unauthenticated (the service has no auth model), so without
         this a caller could force one portal export per request and amplify load on the
         legacy portal without bound. When a forced refresh occurred within
         ``refresh_min_interval_seconds``, this coalesces: it returns the current snapshot
-        and reports ``refreshed=False`` rather than hitting the portal again, capping the
-        forced-export rate at one per interval regardless of caller volume.
+        (which may be ``None`` if none has been built yet) and reports ``refreshed=False``
+        rather than hitting the portal again, capping the forced-export rate at one per
+        interval regardless of caller volume - and regardless of whether a snapshot exists.
 
         The interval check and the rebuild share the store lock, so a concurrent burst
         rebuilds exactly once - the first through the gate wins and the rest coalesce.
@@ -189,14 +190,18 @@ class SnapshotStore:
         async with self._lock:
             last = self._last_forced_refresh_monotonic
             if (
-                self._snapshot is not None
-                and self._refresh_min_interval > 0
+                self._refresh_min_interval > 0
                 and last is not None
                 and (time.monotonic() - last) < self._refresh_min_interval
             ):
                 return self._snapshot, False
-            snapshot = await self._rebuild_under_lock()
+            # Stamp the marker *before* the rebuild, not after: a forced refresh reaches the
+            # portal whether or not it succeeds, so even a failed attempt during a cold
+            # outage (no snapshot yet) must space out the next one. Setting it only on
+            # success left the endpoint unbounded in exactly the state - portal already
+            # struggling - where bounding matters most.
             self._last_forced_refresh_monotonic = time.monotonic()
+            snapshot = await self._rebuild_under_lock()
             return snapshot, True
 
     async def _build(self, *, allow_degraded_fallback: bool = True) -> Snapshot:

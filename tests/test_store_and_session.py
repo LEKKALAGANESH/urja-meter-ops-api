@@ -38,6 +38,7 @@ class FakeClient:
         self.export_calls = 0
         self.energy_calls = 0
         self.export_error: Exception | None = None
+        self.search_error: Exception | None = None
         self.search_pages_used = False
 
     async def export_all_meters(self) -> list[dict]:
@@ -48,6 +49,8 @@ class FakeClient:
 
     async def search_meters(self, query: str = "", page: int = 1):
         self.search_pages_used = True
+        if self.search_error:
+            raise self.search_error
         rows = load_fixture("export_sample.json")["data"]
         return (rows, len(rows)) if page == 1 else ([], len(rows))
 
@@ -149,6 +152,24 @@ class TestForcedRefreshThrottle:
         _, refreshed = await store.refresh_now()
         assert refreshed is True
         assert client.export_calls == 2
+
+    async def test_forced_refresh_is_bounded_even_before_any_snapshot_exists(self):
+        """Cold portal outage: the marker is stamped before the (failing) rebuild, so a
+        second forced refresh still coalesces instead of hitting a portal that is down.
+        Without this the unauthenticated endpoint is unbounded in exactly that state."""
+        client = FakeClient()
+        client.export_error = PortalUnavailable("portal down")
+        client.search_error = PortalUnavailable("portal down")
+        store = SnapshotStore(client, ttl_seconds=300, refresh_min_interval_seconds=300)
+
+        with pytest.raises(PortalUnavailable):
+            await store.refresh_now()  # first attempt reaches the portal and fails
+        hits_after_first = client.export_calls
+
+        snapshot, refreshed = await store.refresh_now()  # within window -> coalesced
+        assert refreshed is False
+        assert snapshot is None
+        assert client.export_calls == hits_after_first  # portal was NOT hit again
 
 
 class TestDegradation:
