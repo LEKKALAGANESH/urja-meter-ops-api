@@ -16,6 +16,24 @@ the result as typed JSON that another program can consume without ever touching 
 | **Design records** | [`docs/adr/`](docs/adr/) |
 | **Operations** | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — deploy, health semantics, failure modes |
 | **Web console** | `/app` once running — meters, hierarchy, consumption, map, data quality |
+| **Walkthrough** | [`docs/walkthrough/`](docs/walkthrough/) — full video + [coverage report](docs/walkthrough/COVERAGE.md) |
+
+---
+
+## Screenshots
+
+A continuous video walkthrough over **403 real meters** lives at
+[`docs/walkthrough/walkthrough.mp4`](docs/walkthrough/walkthrough.mp4) (1920×1080); the
+[coverage report](docs/walkthrough/COVERAGE.md) maps every view, state and API call. A few stills:
+
+| | |
+|:---:|:---:|
+| ![Estate overview](docs/walkthrough/frames/02_overview.png) | ![Meters table with filters](docs/walkthrough/frames/03_meters_table.png) |
+| Estate overview — 403 meters, health & composition | Meters — filter, sort, search, paginate |
+| ![Meter detail with live consumption](docs/walkthrough/frames/10_meter_drawer_detail.png) | ![Geographic distribution](docs/walkthrough/frames/13_map.png) |
+| Meter detail + live consumption chart | Geographic distribution by status |
+| ![Dark theme](docs/walkthrough/frames/16_theme_dark.png) | ![Responsive mobile layout](docs/walkthrough/frames/18_responsive_mobile_390.png) |
+| Dark theme | Responsive at 390 px |
 
 ---
 
