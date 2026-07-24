@@ -25,6 +25,7 @@ instance in `app/main.py` directly (no shim entrypoint):
    |---|---|---|
    | `PORTAL_USERNAME` | yes | Portal login |
    | `PORTAL_PASSWORD` | yes | Portal password |
+   | `SNAPSHOT_REFRESH_ON_START` | **recommended** | Set to `false` on serverless — skips the portal export at cold start, so startup does zero network I/O; the snapshot builds on the first request instead. |
    | `LOG_FORMAT` | no | `json` (default) |
    | any other `Settings` field | no | see `.env.example` |
 

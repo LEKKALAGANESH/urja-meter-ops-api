@@ -155,10 +155,14 @@ async def lifespan(app: FastAPI):
     attach_runtime(app)
     settings: Settings = app.state.settings
 
+    # Best-effort warm start. Any failure here - portal down, timeout, a cold-start network
+    # hiccup on serverless - must never crash startup; the snapshot builds lazily on the
+    # first request regardless. On serverless prefer SNAPSHOT_REFRESH_ON_START=false to skip
+    # this network call entirely (see DEPLOY-VERCEL.md).
     if settings.snapshot_refresh_on_start and settings.has_credentials:
         try:
             await app.state.store.get()
-        except PortalError as exc:
+        except Exception as exc:
             logger.error(
                 "initial snapshot build failed; starting anyway",
                 extra={"error": f"{type(exc).__name__}: {exc}"},
@@ -174,7 +178,9 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        await app.state.http.aclose()
+        http = getattr(app.state, "http", None)
+        if http is not None:
+            await http.aclose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
