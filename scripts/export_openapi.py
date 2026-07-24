@@ -23,8 +23,12 @@ def main() -> int:
     destination = Path(sys.argv[1] if len(sys.argv) > 1 else "openapi.json")
     settings = Settings(portal_username="unused", portal_password="unused")
     schema = create_app(settings).openapi()
+    # newline="\n": force LF on every platform, so the committed spec matches what CI
+    # regenerates on Linux and the freshness diff does not fail on line endings alone.
     destination.write_text(
-        json.dumps(schema, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        json.dumps(schema, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     paths = len(schema.get("paths", {}))
     print(f"wrote {destination} ({paths} paths, OpenAPI {schema.get('openapi')})")

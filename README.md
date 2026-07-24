@@ -415,10 +415,11 @@ on every request.
 | `PORTAL_MAX_RETRIES` | `3` | Retries for timeouts and 5xx |
 | `LOG_FORMAT` | `json` | `json` in production, `console` locally |
 
-`.env.example` documents all 25 settings. `requirements.txt` pins direct dependencies;
-`requirements.lock` additionally pins every transitive dependency with sha256 hashes, and the
-Docker image builds from it with `--require-hashes`, so a compromised or yanked transitive
-release fails the build rather than shipping.
+`.env.example` documents all 25 settings. `requirements.txt` pins every direct dependency to
+an exact version (what the Docker image installs); `requirements.lock` additionally pins every
+transitive dependency with sha256 hashes for a fully reproducible local install
+(`pip install --require-hashes -r requirements.lock`). The lock is generated per-platform, so
+it is not used in the cross-platform container build.
 
 **Secrets:** `.env` is git-ignored, credentials are held as pydantic `SecretStr`, and login
 failures never echo the request body. The portal's HMAC signing secret is fetched at runtime

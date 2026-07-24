@@ -3,12 +3,12 @@
 FROM python:3.11-slim AS builder
 
 WORKDIR /build
-# Build from the hash-pinned lock, not requirements.txt: the lock is the whole point of the
-# CVE-hardening story - every transitive dep pinned with a sha256 - and --require-hashes makes
-# a compromised or yanked release fail the build instead of silently shipping. Verified to
-# install clean on this 3.11 base.
-COPY requirements.lock .
-RUN pip wheel --no-cache-dir --require-hashes --wheel-dir /wheels -r requirements.lock
+# Install from requirements.txt: every direct dependency is pinned to an exact version. The
+# hash-pinned requirements.lock is committed for local reproducibility, but it is generated
+# per-platform, so --require-hashes cannot verify Linux wheels from a Windows-authored lock -
+# using it here would break this linux/amd64 build.
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 
 FROM python:3.11-slim

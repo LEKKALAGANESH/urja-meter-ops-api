@@ -1,0 +1,13 @@
+# Normalize all text to LF so a Windows checkout does not commit CRLF that breaks the
+# CI openapi-freshness diff (which regenerates the spec with LF on Linux).
+* text=auto eol=lf
+
+# Binary assets - never touch line endings.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.mp4 binary
+*.webm binary
+*.pdf binary
+*.ico binary

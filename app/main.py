@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
@@ -53,6 +53,13 @@ from .portal.session import PortalSession
 from .store.snapshot import SnapshotStore
 
 logger = logging.getLogger(__name__)
+
+# The console's lightning mark (U+26A1), served at /favicon.ico so browser auto-requests
+# never 404. Inline SVG keeps it dependency- and file-free; escaped to stay ASCII-safe.
+_FAVICON_SVG = (
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>"
+    "<text y='13' font-size='13'>⚡</text></svg>"
+)
 
 DESCRIPTION = """
 A clean, documented REST API over the legacy **Urja Meter Ops** portal.
@@ -234,6 +241,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "api": settings.api_prefix,
             "health": "/api/v1/health/live",
         }
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> Response:
+        # Browsers auto-request /favicon.ico at the root; serve the same mark as the console
+        # so it never 404s. Inline SVG keeps it dependency- and file-free.
+        return Response(content=_FAVICON_SVG, media_type="image/svg+xml")
 
     return app
 

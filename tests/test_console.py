@@ -63,6 +63,12 @@ class TestConsoleIsServed:
         assert response.status_code == 200
         assert response.json()["console"] == "/app/"
 
+    def test_favicon_is_served_so_browser_requests_never_404(self, client):
+        response = client.get("/favicon.ico")
+        assert response.status_code == 200
+        assert "image/svg+xml" in response.headers["content-type"]
+        assert "<svg" in response.text
+
 
 class TestContentSecurityPolicyScoping:
     def test_console_policy_allows_its_own_assets(self, client):
