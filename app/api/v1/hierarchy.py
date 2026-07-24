@@ -60,8 +60,17 @@ async def get_node_meters(
     if find_node(snapshot.tree, node_id) is None:
         raise NotFoundError(f"No hierarchy node with id {node_id!r}.")
 
-    prefix = "" if node_id == "network" else node_id
-    matches = [m for m in snapshot.meters if meter_path(m).startswith(prefix)]
+    # Match on segment boundaries, not a raw string prefix: node 'Z-01/C-01' must not also
+    # capture a sibling like 'Z-01/C-010/...'. Safe today only because upstream codes are
+    # uniform-width, but a byte-prefix is a latent trap the moment that stops holding.
+    if node_id == "network":
+        matches = list(snapshot.meters)
+    else:
+        matches = [
+            m
+            for m in snapshot.meters
+            if (path := meter_path(m)) == node_id or path.startswith(node_id + "/")
+        ]
     _tag(response, snapshot)
     items = [
         MeterSummary(

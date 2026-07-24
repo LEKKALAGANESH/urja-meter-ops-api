@@ -6,6 +6,7 @@ from collections import Counter
 from typing import Any
 
 from fastapi import APIRouter, Depends, Response
+from pydantic import BaseModel, Field
 
 from ...config import Settings
 from ...domain.models import DataQualityReport, SnapshotInfo
@@ -16,6 +17,17 @@ from ...store.snapshot import Snapshot, SnapshotStore
 from ..deps import get_config, get_session, get_snapshot, get_store
 
 router = APIRouter(tags=["System"])
+
+
+class ReadinessReport(BaseModel):
+    """Body of the readiness probe. Returned with 200 when ready, 503 when draining -
+    the *same* shape either way, so a client can read ``checks`` in both cases. Documented
+    as its own model rather than the error envelope, which readiness does not emit."""
+
+    status: str = Field(description="'ready' or 'not_ready'.")
+    checks: dict[str, Any] = Field(
+        default_factory=dict, description="Per-dependency detail: portal session and snapshot."
+    )
 
 
 @router.get(
@@ -29,11 +41,17 @@ router = APIRouter(tags=["System"])
     ),
 )
 async def liveness(config: Settings = Depends(get_config)) -> dict[str, Any]:
-    return {"status": "alive", "service": config.app_name, "version": config.app_version}
+    return {
+        "status": "alive",
+        "service": config.app_name,
+        "version": config.app_version,
+        "environment": config.environment,
+    }
 
 
 @router.get(
     "/health/ready",
+    response_model=ReadinessReport,
     summary="Readiness probe",
     description=(
         "Can this instance serve real traffic? Verifies the portal session is genuinely "
@@ -42,7 +60,7 @@ async def liveness(config: Settings = Depends(get_config)) -> dict[str, Any]:
         "serving errors. A *stale* snapshot still counts as ready - degraded is better "
         "than down."
     ),
-    responses={503: {"model": ErrorResponse, "description": "Not ready to serve traffic."}},
+    responses={503: {"model": ReadinessReport, "description": "Not ready to serve traffic."}},
 )
 async def readiness(
     response: Response,

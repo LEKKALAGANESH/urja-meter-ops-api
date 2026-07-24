@@ -25,7 +25,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from collections.abc import Iterable
 from typing import Any
 
 import httpx
@@ -232,10 +231,6 @@ class UrjaPortalClient:
             logger.info("bulk export fetched", extra={"meters": len(rows)})
             return rows
         raise PortalProtocolError("unreachable")  # pragma: no cover
-
-    async def map_concurrently(self, meter_ids: Iterable[str], fn: Any) -> list[Any]:
-        """Run ``fn(meter_id)`` across many meters under the shared concurrency ceiling."""
-        return await asyncio.gather(*(fn(mid) for mid in meter_ids))
 
     # --- transport --------------------------------------------------------
 

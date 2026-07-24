@@ -242,14 +242,19 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "description": "Items per page (max 200).",
-              "default": 25,
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Items per page. Defaults to DEFAULT_PAGE_SIZE, capped at MAX_PAGE_SIZE.",
               "title": "Page Size"
             },
-            "description": "Items per page (max 200)."
+            "description": "Items per page. Defaults to DEFAULT_PAGE_SIZE, capped at MAX_PAGE_SIZE."
           }
         ],
         "responses": {
@@ -774,14 +779,19 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "description": "Items per page (max 200).",
-              "default": 25,
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Items per page. Defaults to DEFAULT_PAGE_SIZE, capped at MAX_PAGE_SIZE.",
               "title": "Page Size"
             },
-            "description": "Items per page (max 200)."
+            "description": "Items per page. Defaults to DEFAULT_PAGE_SIZE, capped at MAX_PAGE_SIZE."
           }
         ],
         "responses": {
@@ -1008,14 +1018,19 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "description": "Items per page (max 200).",
-              "default": 25,
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Items per page. Defaults to DEFAULT_PAGE_SIZE, capped at MAX_PAGE_SIZE.",
               "title": "Page Size"
             },
-            "description": "Items per page (max 200)."
+            "description": "Items per page. Defaults to DEFAULT_PAGE_SIZE, capped at MAX_PAGE_SIZE."
           }
         ],
         "responses": {
@@ -1191,14 +1206,19 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "description": "Items per page (max 200).",
-              "default": 25,
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Items per page. Defaults to DEFAULT_PAGE_SIZE, capped at MAX_PAGE_SIZE.",
               "title": "Page Size"
             },
-            "description": "Items per page (max 200)."
+            "description": "Items per page. Defaults to DEFAULT_PAGE_SIZE, capped at MAX_PAGE_SIZE."
           }
         ],
         "responses": {
@@ -1343,9 +1363,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Readiness Api V1 Health Ready Get"
+                  "$ref": "#/components/schemas/ReadinessReport"
                 }
               }
             }
@@ -1375,7 +1393,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ReadinessReport"
                 }
               }
             }
@@ -2663,6 +2681,27 @@
           "three"
         ],
         "title": "PhaseType"
+      },
+      "ReadinessReport": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "'ready' or 'not_ready'."
+          },
+          "checks": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Checks",
+            "description": "Per-dependency detail: portal session and snapshot."
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ReadinessReport",
+        "description": "Body of the readiness probe. Returned with 200 when ready, 503 when draining -\nthe *same* shape either way, so a client can read ``checks`` in both cases. Documented\nas its own model rather than the error envelope, which readiness does not emit."
       },
       "SnapshotInfo": {
         "properties": {

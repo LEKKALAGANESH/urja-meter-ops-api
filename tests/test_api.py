@@ -317,7 +317,9 @@ class TestProximity:
 
 class TestSystem:
     def test_liveness_does_not_depend_on_upstream(self, client):
-        assert client.get("/api/v1/health/live").json()["status"] == "alive"
+        body = client.get("/api/v1/health/live").json()
+        assert body["status"] == "alive"
+        assert "environment" in body  # the configured environment is surfaced for ops
 
     def test_snapshot_info_reports_provenance(self, client):
         body = client.get("/api/v1/system/snapshot").json()
@@ -413,6 +415,9 @@ class TestErrorContractIsDocumented:
     """
 
     def test_every_error_response_references_the_real_envelope(self, client):
+        """Every 4xx/5xx uses the ErrorResponse envelope - never FastAPI's default
+        HTTPValidationError - except the readiness probe's 503, which is a drain signal
+        carrying the same ReadinessReport body as its 200, not an error."""
         spec = client.get("/openapi.json").json()
         refs = {
             resp.get("content", {}).get("application/json", {}).get("schema", {}).get("$ref")
@@ -421,7 +426,10 @@ class TestErrorContractIsDocumented:
             for code, resp in op.get("responses", {}).items()
             if code.startswith(("4", "5"))
         }
-        assert refs == {"#/components/schemas/ErrorResponse"}
+        assert refs == {
+            "#/components/schemas/ErrorResponse",
+            "#/components/schemas/ReadinessReport",
+        }
 
     def test_fastapi_default_validation_schemas_are_gone(self, client):
         schemas = client.get("/openapi.json").json()["components"]["schemas"]
